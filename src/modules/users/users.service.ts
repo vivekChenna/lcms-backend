@@ -4,7 +4,7 @@ import { Role, RoleName } from './entities/role.entity';
 import { UserRole } from './entities/user-role.entity';
 import { hashPassword } from '../../shared/password';
 import { logAuditEvent } from '../audit/audit.service';
-import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError, ForbiddenError } from '../../shared/errors';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
 
 export type UserWithRole = {
@@ -157,6 +157,33 @@ export async function updateUserRole(
     action: 'user.role_changed',
     beforeValue: { roleId: previous?.roleId ?? null },
     afterValue: { roleId: role.id, roleName: role.name },
+  });
+
+  return toUserWithRole(user, role.name);
+}
+
+export async function deactivateUser(dataSource: DataSource, actorId: string, userId: string): Promise<UserWithRole> {
+  if (actorId === userId) {
+    throw new ForbiddenError('You cannot deactivate your own account');
+  }
+
+  const userRepo = dataSource.getRepository(User);
+  const user = await userRepo.findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  user.isActive = false;
+  await userRepo.save(user);
+
+  const userRole = await dataSource.getRepository(UserRole).findOneOrFail({ where: { userId } });
+  const role = await dataSource.getRepository(Role).findOneOrFail({ where: { id: userRole.roleId } });
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    action: 'user.deactivated',
+    beforeValue: { isActive: true },
+    afterValue: { isActive: false },
   });
 
   return toUserWithRole(user, role.name);

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
-import { createUser, listUsers, getUserById, updateUserRole } from './users.service';
+import { createUser, listUsers, getUserById, updateUserRole, deactivateUser } from './users.service';
 import { buildPaginatedResponse } from '../../shared/pagination';
 import {
   createUserBodySchema,
@@ -43,5 +43,12 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
     schema: { params: userIdParamsSchema, body: updateUserRoleBodySchema, response: { 200: userResponseSchema } },
   }, async (request) => {
     return updateUserRole(app.dataSource, request.user.id, request.params.id, request.body.role);
+  });
+
+  typedApp.patch('/users/:id/deactivate', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { params: userIdParamsSchema, response: { 200: userResponseSchema } },
+  }, async (request) => {
+    return deactivateUser(app.dataSource, request.user.id, request.params.id);
   });
 }
