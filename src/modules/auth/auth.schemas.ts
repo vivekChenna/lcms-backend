@@ -5,6 +5,10 @@ export const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
+export const refreshBodySchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
 export const sessionResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),

@@ -60,3 +60,28 @@ export async function login(
   const refreshToken = await issueRefreshToken(dataSource, user.id, refreshTokenExpiresDays);
   return { user: authenticatedUser, refreshToken };
 }
+
+export async function refreshSession(
+  dataSource: DataSource,
+  refreshTokenExpiresDays: number,
+  presentedToken: string,
+): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
+  const repo = dataSource.getRepository(RefreshToken);
+  const existing = await repo.findOne({ where: { tokenHash: hashToken(presentedToken) } });
+
+  if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+    throw new UnauthorizedError('Invalid or expired refresh token');
+  }
+
+  existing.revokedAt = new Date();
+  await repo.save(existing);
+
+  const user = await dataSource.getRepository(User).findOne({ where: { id: existing.userId } });
+  if (!user || !user.isActive) {
+    throw new UnauthorizedError('Invalid or expired refresh token');
+  }
+
+  const authenticatedUser = await loadAuthenticatedUser(dataSource, user);
+  const refreshToken = await issueRefreshToken(dataSource, user.id, refreshTokenExpiresDays);
+  return { user: authenticatedUser, refreshToken };
+}
