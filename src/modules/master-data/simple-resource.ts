@@ -34,9 +34,9 @@ export function registerSimpleMasterDataResource<T extends SimpleResourceRow & O
     if (existing) {
       throw new ConflictError(`'${request.body.name}' already exists`);
     }
-    const row = await repo.save(repo.create({ name: request.body.name, isActive: true } as never));
+    const row = await repo.save(repo.create({ name: request.body.name, isActive: true } as never) as unknown as T);
     await logAuditEvent(app.dataSource, { actorId: request.user.id, action: `${options.auditPrefix}.created`, afterValue: row });
-    reply.status(201).send(row);
+    reply.status(201).send(row as z.infer<typeof itemSchema>);
   });
 
   typedApp.patch(`${options.path}/:id`, {

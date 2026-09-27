@@ -17,12 +17,12 @@ export type UserWithRole = {
   entityId: string | null;
   businessUnitId: string | null;
   isActive: boolean;
-  role: string;
+  role: RoleName;
   createdAt: string;
   updatedAt: string;
 };
 
-function toUserWithRole(user: User, role: string): UserWithRole {
+function toUserWithRole(user: User, role: RoleName): UserWithRole {
   return {
     id: user.id,
     fullName: user.fullName,
@@ -119,7 +119,7 @@ export async function listUsers(
     .take(take)
     .getRawAndEntities();
 
-  const items = entities.map((user, idx) => toUserWithRole(user, raw[idx].role_name as string));
+  const items = entities.map((user, idx) => toUserWithRole(user, raw[idx].role_name as RoleName));
   return { items, total };
 }
 
