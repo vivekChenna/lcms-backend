@@ -16,7 +16,8 @@
     "test:integration": "vitest run test/integration",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/db/data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/db/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/db/data-source.ts"
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/db/data-source.ts",
+    "seed:admin": "tsx src/db/seed-admin.ts"
   },
   "dependencies": {
     "@fastify/jwt": "^10.2.2",
