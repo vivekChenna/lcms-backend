@@ -9,9 +9,11 @@ describe('authenticate preHandler', () => {
   beforeAll(async () => {
     ds = buildTestDataSource();
     await ds.initialize();
+    await ds.runMigrations();
   });
 
   afterAll(async () => {
+    await ds.undoLastMigration();
     await ds.destroy();
   });
 
@@ -35,8 +37,12 @@ describe('authenticate preHandler', () => {
     );
     await app.ready();
 
+    // Valid UUID format but no matching row — authenticate falls back to
+    // trusting the token for an id it can't find (see auth.ts), which this
+    // test also exercises; a malformed non-UUID id would fail the query itself.
+    const noSuchUserId = '99999999-9999-4999-8999-999999999999';
     const token = app.signAccessToken({
-      id: 'user-1',
+      id: noSuchUserId,
       role: 'admin',
       departmentId: null,
       entityId: null,
@@ -45,7 +51,7 @@ describe('authenticate preHandler', () => {
     const res = await app.inject({ method: 'GET', url: '/protected', headers: { authorization: `Bearer ${token}` } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ userId: 'user-1' });
+    expect(res.json()).toEqual({ userId: noSuchUserId });
 
     await app.close();
   });

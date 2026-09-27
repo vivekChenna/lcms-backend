@@ -70,6 +70,8 @@ describe('PATCH /users/:id/deactivate', () => {
       `INSERT INTO users (id, "fullName", email, "passwordHash") VALUES ($1, 'Self Admin', 'self@algihaz.local', 'x')`,
       [ADMIN_ID],
     );
+    const [adminRole] = await ds.query(`SELECT id FROM roles WHERE name = 'admin'`);
+    await ds.query(`INSERT INTO user_roles ("userId", "roleId") VALUES ($1, $2)`, [ADMIN_ID, adminRole.id]);
     const token = adminToken(app);
 
     const res = await app.inject({
@@ -79,6 +81,31 @@ describe('PATCH /users/:id/deactivate', () => {
     });
 
     expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('cuts off access immediately on deactivation, even with an unexpired access token (code review finding — a stateless JWT was previously trusted until natural expiry)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { fullName: 'Stale Token User', email: 'stale@algihaz.local', password: 'Password123!' },
+    });
+    const userId = created.json().id;
+    const staleToken = app.signAccessToken({ id: userId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+
+    const before = await app.inject({ method: 'GET', url: '/departments', headers: { authorization: `Bearer ${staleToken}` } });
+    expect(before.statusCode).toBe(200);
+
+    await app.inject({ method: 'PATCH', url: `/users/${userId}/deactivate`, headers: { authorization: `Bearer ${token}` } });
+
+    const after = await app.inject({ method: 'GET', url: '/departments', headers: { authorization: `Bearer ${staleToken}` } });
+    expect(after.statusCode).toBe(401);
+
     await app.close();
   });
 

@@ -86,6 +86,31 @@ describe('PATCH /users/:id/role', () => {
     await app.close();
   });
 
+  it("reflects a role change immediately on a stale token (code review finding — role was previously trusted from the JWT until it naturally expired)", async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { fullName: 'Promotable', email: 'promotable@algihaz.local', password: 'Password123!' },
+    });
+    const userId = created.json().id;
+    const staleToken = app.signAccessToken({ id: userId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+
+    const before = await app.inject({ method: 'GET', url: '/audit', headers: { authorization: `Bearer ${staleToken}` } });
+    expect(before.statusCode).toBe(403);
+
+    await app.inject({ method: 'PATCH', url: `/users/${userId}/role`, headers: { authorization: `Bearer ${token}` }, payload: { role: 'legal_manager' } });
+
+    const after = await app.inject({ method: 'GET', url: '/audit', headers: { authorization: `Bearer ${staleToken}` } });
+    expect(after.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   it('rejects an unknown role name with a validation error', async () => {
     const app = buildTestApp(ds);
     await app.ready();
