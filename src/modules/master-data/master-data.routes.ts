@@ -14,6 +14,8 @@ import {
   businessUnitSchema, createBusinessUnitBodySchema, updateBusinessUnitBodySchema, listBusinessUnitsQuerySchema,
   idParamsSchema,
 } from './org-structure.schemas';
+import { listCaseTypes, createCaseType, updateCaseType } from './case-types.service';
+import { caseTypeSchema, createCaseTypeBodySchema, updateCaseTypeBodySchema, listCaseTypesQuerySchema } from './case-types.schemas';
 
 export default async function masterDataRoutes(app: FastifyInstance): Promise<void> {
   registerSimpleMasterDataResource(app, { path: '/departments', entity: Department, auditPrefix: 'department' });
@@ -57,4 +59,22 @@ export default async function masterDataRoutes(app: FastifyInstance): Promise<vo
     preHandler: [app.authenticate, requireRole(['admin'])],
     schema: { params: idParamsSchema, body: updateBusinessUnitBodySchema, response: { 200: businessUnitSchema } },
   }, async (request) => updateBusinessUnit(app.dataSource, request.user.id, request.params.id, request.body));
+
+  typedApp.get('/case-types', {
+    preHandler: [app.authenticate],
+    schema: { querystring: listCaseTypesQuerySchema, response: { 200: z.array(caseTypeSchema) } },
+  }, async (request) => listCaseTypes(app.dataSource, request.query.categoryId));
+
+  typedApp.post('/case-types', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { body: createCaseTypeBodySchema, response: { 201: caseTypeSchema } },
+  }, async (request, reply) => {
+    const caseType = await createCaseType(app.dataSource, request.user.id, request.body);
+    reply.status(201).send(caseType);
+  });
+
+  typedApp.patch('/case-types/:id', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { params: idParamsSchema, body: updateCaseTypeBodySchema, response: { 200: caseTypeSchema } },
+  }, async (request) => updateCaseType(app.dataSource, request.user.id, request.params.id, request.body));
 }
