@@ -100,3 +100,35 @@ export async function createUser(
 
   return toUserWithRole(user, 'requester');
 }
+
+export async function listUsers(
+  dataSource: DataSource,
+  query: PaginationQuery,
+): Promise<{ items: UserWithRole[]; total: number }> {
+  const { skip, take } = paginationToSkipTake(query);
+  const repo = dataSource.getRepository(User);
+  const total = await repo.count();
+
+  const { entities, raw } = await repo
+    .createQueryBuilder('user')
+    .leftJoin(UserRole, 'ur', 'ur."userId" = user.id')
+    .leftJoin(Role, 'role', 'role.id = ur."roleId"')
+    .addSelect('role.name', 'role_name')
+    .orderBy('user.createdAt', 'DESC')
+    .skip(skip)
+    .take(take)
+    .getRawAndEntities();
+
+  const items = entities.map((user, idx) => toUserWithRole(user, raw[idx].role_name as string));
+  return { items, total };
+}
+
+export async function getUserById(dataSource: DataSource, id: string): Promise<UserWithRole> {
+  const user = await dataSource.getRepository(User).findOne({ where: { id } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+  const userRole = await dataSource.getRepository(UserRole).findOneOrFail({ where: { userId: id } });
+  const role = await dataSource.getRepository(Role).findOneOrFail({ where: { id: userRole.roleId } });
+  return toUserWithRole(user, role.name);
+}
