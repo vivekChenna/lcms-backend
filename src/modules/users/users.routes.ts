@@ -1,9 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
-import { createUser, listUsers, getUserById } from './users.service';
+import { createUser, listUsers, getUserById, updateUserRole } from './users.service';
 import { buildPaginatedResponse } from '../../shared/pagination';
-import { createUserBodySchema, userResponseSchema, userListQuerySchema, userListResponseSchema, userIdParamsSchema } from './users.schemas';
+import {
+  createUserBodySchema,
+  userResponseSchema,
+  userListQuerySchema,
+  userListResponseSchema,
+  userIdParamsSchema,
+  updateUserRoleBodySchema,
+} from './users.schemas';
 
 export default async function usersRoutes(app: FastifyInstance): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
@@ -29,5 +36,12 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
     schema: { params: userIdParamsSchema, response: { 200: userResponseSchema } },
   }, async (request) => {
     return getUserById(app.dataSource, request.params.id);
+  });
+
+  typedApp.patch('/users/:id/role', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { params: userIdParamsSchema, body: updateUserRoleBodySchema, response: { 200: userResponseSchema } },
+  }, async (request) => {
+    return updateUserRole(app.dataSource, request.user.id, request.params.id, request.body.role);
   });
 }

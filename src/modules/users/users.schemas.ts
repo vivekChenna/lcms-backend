@@ -40,3 +40,7 @@ export const userListResponseSchema = z.object({
 export const userIdParamsSchema = z.object({
   id: z.string().uuid(),
 });
+
+export const updateUserRoleBodySchema = z.object({
+  role: z.enum(ROLE_NAMES),
+});

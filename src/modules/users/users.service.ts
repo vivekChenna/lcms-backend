@@ -132,3 +132,32 @@ export async function getUserById(dataSource: DataSource, id: string): Promise<U
   const role = await dataSource.getRepository(Role).findOneOrFail({ where: { id: userRole.roleId } });
   return toUserWithRole(user, role.name);
 }
+
+export async function updateUserRole(
+  dataSource: DataSource,
+  actorId: string,
+  userId: string,
+  roleName: RoleName,
+): Promise<UserWithRole> {
+  const user = await dataSource.getRepository(User).findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const role = await dataSource.getRepository(Role).findOne({ where: { name: roleName } });
+  if (!role) {
+    throw new ValidationError(`Unknown role: ${roleName}`);
+  }
+
+  const previous = await dataSource.getRepository(UserRole).findOne({ where: { userId } });
+  await assignRole(dataSource, userId, role.id, actorId);
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    action: 'user.role_changed',
+    beforeValue: { roleId: previous?.roleId ?? null },
+    afterValue: { roleId: role.id, roleName: role.name },
+  });
+
+  return toUserWithRole(user, role.name);
+}
