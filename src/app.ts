@@ -5,6 +5,7 @@ import { registerErrorHandler } from './plugins/error-handler';
 import authPlugin from './plugins/auth';
 import authRoutes from './modules/auth/auth.routes';
 import auditRoutes from './modules/audit/audit.routes';
+import usersRoutes from './modules/users/users.routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -21,6 +22,7 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   app.register(authPlugin);
   app.register(authRoutes);
   app.register(auditRoutes);
+  app.register(usersRoutes);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
