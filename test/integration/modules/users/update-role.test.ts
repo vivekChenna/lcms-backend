@@ -125,4 +125,34 @@ describe('PATCH /users/:id/role', () => {
     expect(res.statusCode).toBe(403);
     await app.close();
   });
+
+  it('rejects an admin changing their own role, even to another valid role (code review finding — prevents zero-admin lockout)', async () => {
+    // A real RFC-4122 UUID (variant nibble 8/9/a/b) — needed here because,
+    // unlike this file's other tests, this one uses ADMIN_ID as a validated
+    // :id route param (patching the admin's own row), and Zod 4's
+    // z.string().uuid() rejects the informal '111...1' pattern used as a
+    // JWT-payload-only id elsewhere in this suite.
+    const selfAdminId = '22222222-2222-4222-8222-222222222222';
+    const app = buildTestApp(ds);
+    await app.ready();
+
+    await ds.query(
+      `INSERT INTO users (id, "fullName", email, "passwordHash") VALUES ($1, 'Self Admin', 'self-role@algihaz.local', 'x')`,
+      [selfAdminId],
+    );
+    const [adminRole] = await ds.query(`SELECT id FROM roles WHERE name = 'admin'`);
+    await ds.query(`INSERT INTO user_roles ("userId", "roleId") VALUES ($1, $2)`, [selfAdminId, adminRole.id]);
+
+    const token = app.signAccessToken({ id: selfAdminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${selfAdminId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'viewer' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
 });

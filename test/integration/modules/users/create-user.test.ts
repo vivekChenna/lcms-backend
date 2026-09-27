@@ -107,4 +107,25 @@ describe('POST /users', () => {
     expect(res.statusCode).toBe(400);
     await app.close();
   });
+
+  it('rejects a user created with a non-existent departmentId (code review finding)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        fullName: 'Someone',
+        email: 'someone2@algihaz.local',
+        password: 'Password123!',
+        departmentId: '00000000-0000-0000-0000-000000000000',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

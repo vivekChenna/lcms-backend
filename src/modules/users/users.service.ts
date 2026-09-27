@@ -4,6 +4,9 @@ import { Role, RoleName } from './entities/role.entity';
 import { UserRole } from './entities/user-role.entity';
 import { hashPassword } from '../../shared/password';
 import { logAuditEvent } from '../audit/audit.service';
+import { Department } from '../master-data/entities/department.entity';
+import { OrgEntity } from '../master-data/entities/org-entity.entity';
+import { BusinessUnit } from '../master-data/entities/business-unit.entity';
 import { ConflictError, NotFoundError, ValidationError, ForbiddenError } from '../../shared/errors';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
 
@@ -61,6 +64,30 @@ export type CreateUserInput = {
   businessUnitId?: string;
 };
 
+async function assertValidOrgReferences(
+  dataSource: DataSource,
+  input: { departmentId?: string; entityId?: string; businessUnitId?: string },
+): Promise<void> {
+  if (input.departmentId) {
+    const department = await dataSource.getRepository(Department).findOne({ where: { id: input.departmentId } });
+    if (!department) {
+      throw new ValidationError('Unknown departmentId');
+    }
+  }
+  if (input.entityId) {
+    const entity = await dataSource.getRepository(OrgEntity).findOne({ where: { id: input.entityId } });
+    if (!entity) {
+      throw new ValidationError('Unknown entityId');
+    }
+  }
+  if (input.businessUnitId) {
+    const businessUnit = await dataSource.getRepository(BusinessUnit).findOne({ where: { id: input.businessUnitId } });
+    if (!businessUnit) {
+      throw new ValidationError('Unknown businessUnitId');
+    }
+  }
+}
+
 export async function createUser(
   dataSource: DataSource,
   actorId: string,
@@ -73,6 +100,8 @@ export async function createUser(
   if (existing) {
     throw new ConflictError('A user with this email already exists');
   }
+
+  await assertValidOrgReferences(dataSource, input);
 
   const passwordHash = await hashPassword(input.password);
   const user = await userRepo.save(
@@ -139,6 +168,10 @@ export async function updateUserRole(
   userId: string,
   roleName: RoleName,
 ): Promise<UserWithRole> {
+  if (actorId === userId) {
+    throw new ForbiddenError('You cannot change your own role — this prevents a lockout with zero admins');
+  }
+
   const user = await dataSource.getRepository(User).findOne({ where: { id: userId } });
   if (!user) {
     throw new NotFoundError('User not found');
