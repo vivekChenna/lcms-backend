@@ -28,7 +28,7 @@ export async function seedAdmin(
 }
 
 async function main(): Promise<void> {
-  const { AppDataSource } = await import('./data-source');
+  const { AppDataSource } = await import('./data-source.js');
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
   if (!email || !password) {

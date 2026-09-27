@@ -9,8 +9,12 @@ export type AuthenticatedUser = {
   businessUnitId: string | null;
 };
 
-declare module 'fastify' {
-  interface FastifyRequest {
+// @fastify/jwt already declares `FastifyRequest.user` itself (defaulting to
+// `string | object | Buffer`); redeclaring it directly on `fastify` conflicts
+// with that declaration merge. Its own designated extension point is the
+// `FastifyJWT` interface it exports for exactly this purpose.
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
     user: AuthenticatedUser;
   }
 }
