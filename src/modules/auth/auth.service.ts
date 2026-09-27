@@ -61,6 +61,10 @@ export async function login(
   return { user: authenticatedUser, refreshToken };
 }
 
+export async function logout(dataSource: DataSource, presentedToken: string): Promise<void> {
+  await dataSource.getRepository(RefreshToken).update({ tokenHash: hashToken(presentedToken) }, { revokedAt: new Date() });
+}
+
 export async function refreshSession(
   dataSource: DataSource,
   refreshTokenExpiresDays: number,
