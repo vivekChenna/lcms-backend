@@ -6,6 +6,7 @@ import authPlugin from './plugins/auth';
 import authRoutes from './modules/auth/auth.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import usersRoutes from './modules/users/users.routes';
+import masterDataRoutes from './modules/master-data/master-data.routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -23,6 +24,7 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   app.register(authRoutes);
   app.register(auditRoutes);
   app.register(usersRoutes);
+  app.register(masterDataRoutes);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
