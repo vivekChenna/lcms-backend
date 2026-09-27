@@ -9,8 +9,9 @@ import { ClosureOutcome } from '../modules/master-data/entities/closure-outcome.
 import { OrgEntity } from '../modules/master-data/entities/org-entity.entity';
 import { BusinessUnit } from '../modules/master-data/entities/business-unit.entity';
 import { CaseType } from '../modules/master-data/entities/case-type.entity';
+import { RoutingRule } from '../modules/master-data/entities/routing-rule.entity';
 
 export const entities = [
   Role, User, UserRole, RefreshToken, AuditLog,
-  Department, CaseCategory, ClosureOutcome, OrgEntity, BusinessUnit, CaseType,
+  Department, CaseCategory, ClosureOutcome, OrgEntity, BusinessUnit, CaseType, RoutingRule,
 ];

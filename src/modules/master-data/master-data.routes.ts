@@ -16,6 +16,8 @@ import {
 } from './org-structure.schemas';
 import { listCaseTypes, createCaseType, updateCaseType } from './case-types.service';
 import { caseTypeSchema, createCaseTypeBodySchema, updateCaseTypeBodySchema, listCaseTypesQuerySchema } from './case-types.schemas';
+import { listRoutingRules, createRoutingRule, updateRoutingRule } from './routing-rules.service';
+import { routingRuleSchema, createRoutingRuleBodySchema, updateRoutingRuleBodySchema } from './routing-rules.schemas';
 
 export default async function masterDataRoutes(app: FastifyInstance): Promise<void> {
   registerSimpleMasterDataResource(app, { path: '/departments', entity: Department, auditPrefix: 'department' });
@@ -77,4 +79,22 @@ export default async function masterDataRoutes(app: FastifyInstance): Promise<vo
     preHandler: [app.authenticate, requireRole(['admin'])],
     schema: { params: idParamsSchema, body: updateCaseTypeBodySchema, response: { 200: caseTypeSchema } },
   }, async (request) => updateCaseType(app.dataSource, request.user.id, request.params.id, request.body));
+
+  typedApp.get('/routing-rules', {
+    preHandler: [app.authenticate],
+    schema: { response: { 200: z.array(routingRuleSchema) } },
+  }, async () => listRoutingRules(app.dataSource));
+
+  typedApp.post('/routing-rules', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { body: createRoutingRuleBodySchema, response: { 201: routingRuleSchema } },
+  }, async (request, reply) => {
+    const rule = await createRoutingRule(app.dataSource, request.user.id, request.body);
+    reply.status(201).send(rule);
+  });
+
+  typedApp.patch('/routing-rules/:id', {
+    preHandler: [app.authenticate, requireRole(['admin'])],
+    schema: { params: idParamsSchema, body: updateRoutingRuleBodySchema, response: { 200: routingRuleSchema } },
+  }, async (request) => updateRoutingRule(app.dataSource, request.user.id, request.params.id, request.body));
 }
