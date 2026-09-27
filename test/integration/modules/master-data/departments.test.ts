@@ -61,6 +61,26 @@ describe('/departments', () => {
     await app.close();
   });
 
+  it('rejects renaming a department to a name that already exists (PATCH has no pre-check — relies on the central 23505 mapper)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    await app.inject({ method: 'POST', url: '/departments', headers: { authorization: `Bearer ${token}` }, payload: { name: 'Finance' } });
+    const create = await app.inject({ method: 'POST', url: '/departments', headers: { authorization: `Bearer ${token}` }, payload: { name: 'Operations' } });
+    const id = create.json().id;
+
+    const rename = await app.inject({
+      method: 'PATCH',
+      url: `/departments/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Finance' },
+    });
+
+    expect(rename.statusCode).toBe(409);
+    await app.close();
+  });
+
   it('soft-deactivates via PATCH isActive:false instead of deleting (DM-09 immediate effect, no hard delete)', async () => {
     const app = buildTestApp(ds);
     await app.ready();

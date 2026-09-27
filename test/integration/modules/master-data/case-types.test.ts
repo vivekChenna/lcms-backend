@@ -63,6 +63,28 @@ describe('/case-types', () => {
     await app.close();
   });
 
+  it('rejects renaming a case type to a name that collides within the same category (composite unique + central 23505 mapper)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    const [category] = (await app.inject({ method: 'GET', url: '/case-categories', headers: { authorization: `Bearer ${token}` } })).json();
+
+    await app.inject({ method: 'POST', url: '/case-types', headers: { authorization: `Bearer ${token}` }, payload: { categoryId: category.id, name: 'Existing Type', slaAckHours: 24, slaResolutionHours: 100 } });
+    const create = await app.inject({ method: 'POST', url: '/case-types', headers: { authorization: `Bearer ${token}` }, payload: { categoryId: category.id, name: 'Renamable Type', slaAckHours: 24, slaResolutionHours: 100 } });
+    const id = create.json().id;
+
+    const rename = await app.inject({
+      method: 'PATCH',
+      url: `/case-types/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Existing Type' },
+    });
+
+    expect(rename.statusCode).toBe(409);
+    await app.close();
+  });
+
   it('lists case types filtered by categoryId', async () => {
     const app = buildTestApp(ds);
     await app.ready();

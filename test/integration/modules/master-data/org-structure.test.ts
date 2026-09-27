@@ -73,6 +73,28 @@ describe('/entities, /business-units', () => {
     await app.close();
   });
 
+  it('rejects renaming a business unit to a name that collides within the same entity (composite unique + central 23505 mapper)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    const [entity] = (await app.inject({ method: 'GET', url: '/entities', headers: { authorization: `Bearer ${token}` } })).json();
+
+    await app.inject({ method: 'POST', url: '/business-units', headers: { authorization: `Bearer ${token}` }, payload: { entityId: entity.id, name: 'Existing BU' } });
+    const create = await app.inject({ method: 'POST', url: '/business-units', headers: { authorization: `Bearer ${token}` }, payload: { entityId: entity.id, name: 'Renamable BU' } });
+    const id = create.json().id;
+
+    const rename = await app.inject({
+      method: 'PATCH',
+      url: `/business-units/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Existing BU' },
+    });
+
+    expect(rename.statusCode).toBe(409);
+    await app.close();
+  });
+
   it('lists business units filtered by entityId', async () => {
     const app = buildTestApp(ds);
     await app.ready();
