@@ -7,13 +7,13 @@ function fakeRequest(role: string) {
 }
 
 describe('requireRole', () => {
-  it('allows a request whose role is in the allow-list', () => {
+  it('allows a request whose role is in the allow-list', async () => {
     const handler = requireRole(['admin', 'legal_manager']);
-    expect(() => handler(fakeRequest('admin'), {} as any)).not.toThrow();
+    await expect(handler(fakeRequest('admin'), {} as any)).resolves.toBeUndefined();
   });
 
-  it('throws ForbiddenError for a role not in the allow-list', () => {
+  it('rejects with ForbiddenError for a role not in the allow-list', async () => {
     const handler = requireRole(['admin']);
-    expect(() => handler(fakeRequest('requester'), {} as any)).toThrow(ForbiddenError);
+    await expect(handler(fakeRequest('requester'), {} as any)).rejects.toThrow(ForbiddenError);
   });
 });

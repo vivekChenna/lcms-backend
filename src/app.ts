@@ -4,6 +4,7 @@ import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-
 import { registerErrorHandler } from './plugins/error-handler';
 import authPlugin from './plugins/auth';
 import authRoutes from './modules/auth/auth.routes';
+import auditRoutes from './modules/audit/audit.routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -19,6 +20,7 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   registerErrorHandler(app);
   app.register(authPlugin);
   app.register(authRoutes);
+  app.register(auditRoutes);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
