@@ -8,7 +8,7 @@ export class CaseType {
   @Column({ type: 'uuid' })
   categoryId!: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name!: string;
 
   @Column({ type: 'varchar', nullable: true })
@@ -20,6 +20,6 @@ export class CaseType {
   @Column({ type: 'int' })
   slaResolutionHours!: number;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 }

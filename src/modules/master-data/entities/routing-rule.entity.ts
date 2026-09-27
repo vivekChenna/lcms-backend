@@ -14,6 +14,6 @@ export class RoutingRule {
   @Column({ type: 'int', default: 0 })
   priorityOrder!: number;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 }

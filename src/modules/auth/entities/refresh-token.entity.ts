@@ -8,7 +8,7 @@ export class RefreshToken {
   @Column({ type: 'uuid' })
   userId!: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   tokenHash!: string;
 
   @Column({ type: 'timestamptz' })

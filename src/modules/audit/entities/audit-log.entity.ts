@@ -11,7 +11,7 @@ export class AuditLog {
   @Column({ type: 'uuid' })
   actorId!: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   action!: string;
 
   @Column({ type: 'jsonb', nullable: true })

@@ -8,9 +8,9 @@ export class BusinessUnit {
   @Column({ type: 'uuid' })
   entityId!: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name!: string;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 }
