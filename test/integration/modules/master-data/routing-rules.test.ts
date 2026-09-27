@@ -112,4 +112,53 @@ describe('/routing-rules', () => {
 
     await app.close();
   });
+
+  it('records the ORIGINAL target in the audit before-value when retargeting (code review finding)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+    const repA = await createLegalRep(app, token, 'rep4@algihaz.local');
+    const repB = await createLegalRep(app, token, 'rep5@algihaz.local');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/routing-rules',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { matchCriteria: {}, targetLegalRepId: repA, priorityOrder: 1 },
+    });
+    const ruleId = created.json().id;
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/routing-rules/${ruleId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { targetLegalRepId: repB },
+    });
+
+    const [entry] = await ds.query(
+      `SELECT "beforeValue", "afterValue" FROM audit_log WHERE action = 'routing_rule.updated'`,
+    );
+    expect(entry.beforeValue.targetLegalRepId).toBe(repA);
+    expect(entry.afterValue.targetLegalRepId).toBe(repB);
+
+    await app.close();
+  });
+
+  it('rejects a routing rule targeting a deactivated legal_rep (code review finding)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+    const repId = await createLegalRep(app, token, 'rep6@algihaz.local');
+    await app.inject({ method: 'PATCH', url: `/users/${repId}/deactivate`, headers: { authorization: `Bearer ${token}` } });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/routing-rules',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { matchCriteria: {}, targetLegalRepId: repId, priorityOrder: 1 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

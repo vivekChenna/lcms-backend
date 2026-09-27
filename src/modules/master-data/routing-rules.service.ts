@@ -8,8 +8,8 @@ import { logAuditEvent } from '../audit/audit.service';
 
 async function assertValidLegalRep(dataSource: DataSource, userId: string): Promise<void> {
   const user = await dataSource.getRepository(User).findOne({ where: { id: userId } });
-  if (!user) {
-    throw new ValidationError('Unknown targetLegalRepId');
+  if (!user || !user.isActive) {
+    throw new ValidationError('Unknown or inactive targetLegalRepId');
   }
   const userRole = await dataSource.getRepository(UserRole).findOne({ where: { userId } });
   const role = userRole ? await dataSource.getRepository(Role).findOne({ where: { id: userRole.roleId } }) : null;
@@ -59,16 +59,16 @@ export async function updateRoutingRule(
   if (!rule) {
     throw new NotFoundError('Routing rule not found');
   }
-  if (input.targetLegalRepId) {
-    await assertValidLegalRep(dataSource, input.targetLegalRepId);
-    rule.targetLegalRepId = input.targetLegalRepId;
-  }
   const before = {
     matchCriteria: rule.matchCriteria,
     targetLegalRepId: rule.targetLegalRepId,
     priorityOrder: rule.priorityOrder,
     isActive: rule.isActive,
   };
+  if (input.targetLegalRepId) {
+    await assertValidLegalRep(dataSource, input.targetLegalRepId);
+    rule.targetLegalRepId = input.targetLegalRepId;
+  }
   if (input.matchCriteria !== undefined) rule.matchCriteria = input.matchCriteria;
   if (input.priorityOrder !== undefined) rule.priorityOrder = input.priorityOrder;
   if (input.isActive !== undefined) rule.isActive = input.isActive;
