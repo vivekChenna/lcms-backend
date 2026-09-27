@@ -6,5 +6,10 @@ import { AuditLog } from '../modules/audit/entities/audit-log.entity';
 import { Department } from '../modules/master-data/entities/department.entity';
 import { CaseCategory } from '../modules/master-data/entities/case-category.entity';
 import { ClosureOutcome } from '../modules/master-data/entities/closure-outcome.entity';
+import { OrgEntity } from '../modules/master-data/entities/org-entity.entity';
+import { BusinessUnit } from '../modules/master-data/entities/business-unit.entity';
 
-export const entities = [Role, User, UserRole, RefreshToken, AuditLog, Department, CaseCategory, ClosureOutcome];
+export const entities = [
+  Role, User, UserRole, RefreshToken, AuditLog,
+  Department, CaseCategory, ClosureOutcome, OrgEntity, BusinessUnit,
+];
