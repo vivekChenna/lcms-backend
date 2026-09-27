@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { registerErrorHandler } from './plugins/error-handler';
 import authPlugin from './plugins/auth';
+import authRoutes from './modules/auth/auth.routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -17,6 +18,7 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);
   app.register(authPlugin);
+  app.register(authRoutes);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
