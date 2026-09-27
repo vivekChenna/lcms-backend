@@ -70,17 +70,28 @@ export async function refreshSession(
   refreshTokenExpiresDays: number,
   presentedToken: string,
 ): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
-  const repo = dataSource.getRepository(RefreshToken);
-  const existing = await repo.findOne({ where: { tokenHash: hashToken(presentedToken) } });
+  // Atomic claim: a plain find-then-update is a read-then-write race — two
+  // concurrent requests presenting the same token can both read it as
+  // unrevoked before either write lands, both mint a session, and the
+  // "replay of a used token" guarantee is lost. The UPDATE...WHERE...RETURNING
+  // makes the claim itself the race's only decision point: Postgres locks
+  // the row per-statement, so only the request whose UPDATE actually matches
+  // an unrevoked row gets a result back (code review finding — verified with
+  // 5-way concurrent replay, 20 rounds).
+  // TypeORM's raw query() for an UPDATE...RETURNING returns a [rows, affectedCount]
+  // tuple for Postgres, not the rows array directly — destructure it.
+  const [claimedRows] = await dataSource.query(
+    `UPDATE refresh_tokens SET "revokedAt" = now()
+     WHERE "tokenHash" = $1 AND "revokedAt" IS NULL AND "expiresAt" > now()
+     RETURNING "userId"`,
+    [hashToken(presentedToken)],
+  ) as [Array<{ userId: string }>, number];
 
-  if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+  if (claimedRows.length !== 1) {
     throw new UnauthorizedError('Invalid or expired refresh token');
   }
 
-  existing.revokedAt = new Date();
-  await repo.save(existing);
-
-  const user = await dataSource.getRepository(User).findOne({ where: { id: existing.userId } });
+  const user = await dataSource.getRepository(User).findOne({ where: { id: claimedRows[0].userId } });
   if (!user || !user.isActive) {
     throw new UnauthorizedError('Invalid or expired refresh token');
   }

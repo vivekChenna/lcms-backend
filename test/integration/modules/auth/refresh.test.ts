@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
 import { seedAdmin } from '../../../../src/db/seed-admin';
+import { login, refreshSession } from '../../../../src/modules/auth/auth.service';
 
 describe('POST /auth/refresh', () => {
   let ds: DataSource;
@@ -71,5 +72,19 @@ describe('POST /auth/refresh', () => {
     expect(res.statusCode).toBe(401);
 
     await app.close();
+  });
+
+  it('rejects concurrent replay at the service level — exactly one of N simultaneous refreshes with the same token succeeds (code review finding, matches reviewer repro: N=5, 20 rounds)', async () => {
+    for (let round = 0; round < 20; round += 1) {
+      await seedAdmin(ds, { email: `admin-round-${round}@lcms.local`, password: 'Correct123!' });
+      const { refreshToken } = await login(ds, 30, `admin-round-${round}@lcms.local`, 'Correct123!');
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 5 }, () => refreshSession(ds, 30, refreshToken)),
+      );
+      const succeeded = results.filter((r) => r.status === 'fulfilled');
+
+      expect(succeeded).toHaveLength(1);
+    }
   });
 });
