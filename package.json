@@ -16,9 +16,8 @@
     "start": "node dist/server.js",
     "test": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/db/data-source.ts",
-    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/db/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/db/data-source.ts",
+    "migration:run": "tsx src/db/migrate.ts run",
+    "migration:revert": "tsx src/db/migrate.ts revert",
     "seed:admin": "tsx src/db/seed-admin.ts"
   },
   "dependencies": {
