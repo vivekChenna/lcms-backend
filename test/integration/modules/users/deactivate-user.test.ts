@@ -2,19 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-// A real RFC-4122 UUID (variant nibble 8/9/a/b) — unlike the informal
-// '111...1' pattern used elsewhere, this one is also used as a validated
-// :id route param in this file, and Zod 4's z.string().uuid() rejects
-// non-compliant variant nibbles.
-const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
-
-function adminToken(app: ReturnType<typeof buildTestApp>, id = ADMIN_ID) {
-  return app.signAccessToken({ id, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('PATCH /users/:id/deactivate', () => {
   let ds: DataSource;
+  let adminId: string;
+
+  function adminToken(app: ReturnType<typeof buildTestApp>, id = adminId) {
+    return app.signAccessToken({ id, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
@@ -32,6 +28,7 @@ describe('PATCH /users/:id/deactivate', () => {
     await ds.query('DELETE FROM audit_log');
     await ds.query('DELETE FROM user_roles');
     await ds.query('DELETE FROM users');
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   it('deactivates another user and logs the change', async () => {
@@ -66,17 +63,11 @@ describe('PATCH /users/:id/deactivate', () => {
     const app = buildTestApp(ds);
     await app.ready();
 
-    await ds.query(
-      `INSERT INTO users (id, "fullName", email, "passwordHash") VALUES ($1, 'Self Admin', 'self@algihaz.local', 'x')`,
-      [ADMIN_ID],
-    );
-    const [adminRole] = await ds.query(`SELECT id FROM roles WHERE name = 'admin'`);
-    await ds.query(`INSERT INTO user_roles ("userId", "roleId") VALUES ($1, $2)`, [ADMIN_ID, adminRole.id]);
     const token = adminToken(app);
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/users/${ADMIN_ID}/deactivate`,
+      url: `/users/${adminId}/deactivate`,
       headers: { authorization: `Bearer ${token}` },
     });
 

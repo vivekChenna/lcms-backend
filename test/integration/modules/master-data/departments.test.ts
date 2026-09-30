@@ -2,20 +2,21 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
-
-function adminToken(app: ReturnType<typeof buildTestApp>) {
-  return app.signAccessToken({ id: ADMIN_ID, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('/departments', () => {
   let ds: DataSource;
+  let adminId: string;
+
+  function adminToken(app: ReturnType<typeof buildTestApp>) {
+    return app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
     await ds.initialize();
     await ds.runMigrations();
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   afterAll(async () => {
@@ -107,7 +108,8 @@ describe('/departments', () => {
   it('rejects create/update from a non-admin role but still allows reads (UI-18)', async () => {
     const app = buildTestApp(ds);
     await app.ready();
-    const requesterToken = app.signAccessToken({ id: ADMIN_ID, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+    const requesterId = await seedUserWithRole(ds, 'requester');
+    const requesterToken = app.signAccessToken({ id: requesterId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
 
     const createAttempt = await app.inject({ method: 'POST', url: '/departments', headers: { authorization: `Bearer ${requesterToken}` }, payload: { name: 'X' } });
     expect(createAttempt.statusCode).toBe(403);

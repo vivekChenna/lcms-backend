@@ -38,19 +38,18 @@ export default fp(async function authPlugin(app: FastifyInstance) {
     // deactivation or role change wouldn't take effect until the token
     // naturally expired. Re-checking against the current row on every
     // request makes both effects immediate (code review finding). A row
-    // that no longer exists for this id (only reachable via a token minted
-    // outside the normal login/refresh flow, e.g. test fixtures) falls back
-    // to trusting the token rather than failing closed on a case that can't
-    // occur in production.
+    // that no longer exists for this id (the user was hard-removed from
+    // the DB out of band, or the token was forged/replayed against a row
+    // that's since gone) fails closed rather than trusting the token's own
+    // claims — a valid signature proves the token was genuinely issued, not
+    // that the account it names still exists (code review finding).
     const user = await app.dataSource.getRepository(User).findOne({ where: { id: decoded.id } });
-    if (user) {
-      if (!user.isActive) {
-        throw new UnauthorizedError('Account is deactivated');
-      }
-      request.user = await loadAuthenticatedUser(app.dataSource, user);
-      return;
+    if (!user) {
+      throw new UnauthorizedError('Account no longer exists');
     }
-
-    request.user = decoded;
+    if (!user.isActive) {
+      throw new UnauthorizedError('Account is deactivated');
+    }
+    request.user = await loadAuthenticatedUser(app.dataSource, user);
   });
 });

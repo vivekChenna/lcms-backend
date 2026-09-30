@@ -3,20 +3,29 @@ import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
 import { logAuditEvent } from '../../../../src/modules/audit/audit.service';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
-
-function tokenFor(app: ReturnType<typeof buildTestApp>, role: string) {
-  return app.signAccessToken({ id: ADMIN_ID, role, departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole, type SeedableRole } from '../../helpers/seed-user';
 
 describe('GET /audit', () => {
   let ds: DataSource;
+  let userIds: Record<SeedableRole, string>;
+  let adminId: string;
+
+  function tokenFor(app: ReturnType<typeof buildTestApp>, role: SeedableRole) {
+    return app.signAccessToken({ id: userIds[role], role, departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
     await ds.initialize();
     await ds.runMigrations();
+    userIds = {
+      admin: await seedUserWithRole(ds, 'admin'),
+      legal_manager: await seedUserWithRole(ds, 'legal_manager'),
+      legal_rep: await seedUserWithRole(ds, 'legal_rep'),
+      requester: await seedUserWithRole(ds, 'requester'),
+      viewer: await seedUserWithRole(ds, 'viewer'),
+    };
+    adminId = userIds.admin;
   });
 
   afterAll(async () => {
@@ -47,8 +56,8 @@ describe('GET /audit', () => {
   });
 
   it('returns paginated entries for an admin', async () => {
-    await logAuditEvent(ds, { actorId: ADMIN_ID, action: 'user.created' });
-    await logAuditEvent(ds, { actorId: ADMIN_ID, action: 'user.deactivated' });
+    await logAuditEvent(ds, { actorId: adminId, action: 'user.created' });
+    await logAuditEvent(ds, { actorId: adminId, action: 'user.deactivated' });
 
     const app = buildTestApp(ds);
     await app.ready();
@@ -63,8 +72,8 @@ describe('GET /audit', () => {
   });
 
   it('filters by action', async () => {
-    await logAuditEvent(ds, { actorId: ADMIN_ID, action: 'user.created' });
-    await logAuditEvent(ds, { actorId: ADMIN_ID, action: 'user.deactivated' });
+    await logAuditEvent(ds, { actorId: adminId, action: 'user.created' });
+    await logAuditEvent(ds, { actorId: adminId, action: 'user.deactivated' });
 
     const app = buildTestApp(ds);
     await app.ready();

@@ -2,15 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
-
-function adminToken(app: ReturnType<typeof buildTestApp>) {
-  return app.signAccessToken({ id: ADMIN_ID, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('PATCH /users/:id/role', () => {
   let ds: DataSource;
+  let adminId: string;
+
+  function adminToken(app: ReturnType<typeof buildTestApp>) {
+    return app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
@@ -28,6 +28,7 @@ describe('PATCH /users/:id/role', () => {
     await ds.query('DELETE FROM audit_log');
     await ds.query('DELETE FROM user_roles');
     await ds.query('DELETE FROM users');
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   it("changes a user's role and logs the change", async () => {
@@ -138,7 +139,8 @@ describe('PATCH /users/:id/role', () => {
   it('rejects role changes from a non-admin role', async () => {
     const app = buildTestApp(ds);
     await app.ready();
-    const managerToken = app.signAccessToken({ id: ADMIN_ID, role: 'legal_manager', departmentId: null, entityId: null, businessUnitId: null });
+    const legalManagerId = await seedUserWithRole(ds, 'legal_manager');
+    const managerToken = app.signAccessToken({ id: legalManagerId, role: 'legal_manager', departmentId: null, entityId: null, businessUnitId: null });
 
     const res = await app.inject({
       method: 'PATCH',
@@ -152,27 +154,14 @@ describe('PATCH /users/:id/role', () => {
   });
 
   it('rejects an admin changing their own role, even to another valid role (code review finding — prevents zero-admin lockout)', async () => {
-    // A real RFC-4122 UUID (variant nibble 8/9/a/b) — needed here because,
-    // unlike this file's other tests, this one uses ADMIN_ID as a validated
-    // :id route param (patching the admin's own row), and Zod 4's
-    // z.string().uuid() rejects the informal '111...1' pattern used as a
-    // JWT-payload-only id elsewhere in this suite.
-    const selfAdminId = '22222222-2222-4222-8222-222222222222';
     const app = buildTestApp(ds);
     await app.ready();
 
-    await ds.query(
-      `INSERT INTO users (id, "fullName", email, "passwordHash") VALUES ($1, 'Self Admin', 'self-role@algihaz.local', 'x')`,
-      [selfAdminId],
-    );
-    const [adminRole] = await ds.query(`SELECT id FROM roles WHERE name = 'admin'`);
-    await ds.query(`INSERT INTO user_roles ("userId", "roleId") VALUES ($1, $2)`, [selfAdminId, adminRole.id]);
-
-    const token = app.signAccessToken({ id: selfAdminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+    const token = adminToken(app);
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/users/${selfAdminId}/role`,
+      url: `/users/${adminId}/role`,
       headers: { authorization: `Bearer ${token}` },
       payload: { role: 'viewer' },
     });

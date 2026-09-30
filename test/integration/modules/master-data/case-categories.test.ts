@@ -2,16 +2,19 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('/case-categories, /closure-outcomes', () => {
   let ds: DataSource;
+  let adminId: string;
+  let viewerId: string;
 
   beforeAll(async () => {
     ds = buildTestDataSource();
     await ds.initialize();
     await ds.runMigrations();
+    adminId = await seedUserWithRole(ds, 'admin');
+    viewerId = await seedUserWithRole(ds, 'viewer');
   });
 
   afterAll(async () => {
@@ -24,7 +27,7 @@ describe('/case-categories, /closure-outcomes', () => {
   it('lists the four seeded case categories (DM-01)', async () => {
     const app = buildTestApp(ds);
     await app.ready();
-    const token = app.signAccessToken({ id: ADMIN_ID, role: 'viewer', departmentId: null, entityId: null, businessUnitId: null });
+    const token = app.signAccessToken({ id: viewerId, role: 'viewer', departmentId: null, entityId: null, businessUnitId: null });
 
     const res = await app.inject({ method: 'GET', url: '/case-categories', headers: { authorization: `Bearer ${token}` } });
 
@@ -38,7 +41,7 @@ describe('/case-categories, /closure-outcomes', () => {
   it('admin can add a new closure outcome (PR-29, extensible master data)', async () => {
     const app = buildTestApp(ds);
     await app.ready();
-    const token = app.signAccessToken({ id: ADMIN_ID, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+    const token = app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
 
     const res = await app.inject({
       method: 'POST',
