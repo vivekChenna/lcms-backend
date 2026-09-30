@@ -10,7 +10,7 @@ export default async function auditRoutes(app: FastifyInstance): Promise<void> {
 
   typedApp.get('/audit', {
     preHandler: [app.authenticate, requireRole(['admin', 'legal_manager'])],
-    schema: { querystring: auditQuerySchema, response: { 200: auditListResponseSchema } },
+    schema: { tags: ['Audit'], security: [{ bearerAuth: [] }], querystring: auditQuerySchema, response: { 200: auditListResponseSchema } },
   }, async (request) => {
     const query = request.query;
     const repo = app.dataSource.getRepository(AuditLog);

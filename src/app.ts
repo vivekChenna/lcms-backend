@@ -2,6 +2,8 @@ import Fastify, { FastifyInstance } from 'fastify';
 import type { DataSource } from 'typeorm';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { registerErrorHandler } from './plugins/error-handler';
+import swaggerPlugin from './plugins/swagger';
+import rateLimitPlugin from './plugins/rate-limit';
 import authPlugin from './plugins/auth';
 import authRoutes from './modules/auth/auth.routes';
 import auditRoutes from './modules/audit/audit.routes';
@@ -20,13 +22,22 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);
+  app.register(swaggerPlugin);
+  app.register(rateLimitPlugin);
   app.register(authPlugin);
   app.register(authRoutes);
   app.register(auditRoutes);
   app.register(usersRoutes);
   app.register(masterDataRoutes);
 
-  app.get('/health', async () => ({ status: 'ok' }));
+  // Registered via .register() (rather than app.get(...) directly) so it boots
+  // through the same avvio sequence as the other route modules, after
+  // swaggerPlugin's onRoute hook is attached — a route added directly on the
+  // parent instance is added to the router before that hook exists and is
+  // silently missing from the generated OpenAPI spec.
+  app.register(async (instance) => {
+    instance.get('/health', { schema: { tags: ['Health'] } }, async () => ({ status: 'ok' }));
+  });
 
   return app;
 }
