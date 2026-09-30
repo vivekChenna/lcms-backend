@@ -15,14 +15,29 @@ export type SeedableRole = 'admin' | 'legal_manager' | 'legal_rep' | 'requester'
 export async function seedUserWithRole(
   ds: DataSource,
   role: SeedableRole,
-  overrides: { email?: string; fullName?: string; isActive?: boolean } = {},
+  overrides: {
+    email?: string;
+    fullName?: string;
+    isActive?: boolean;
+    departmentId?: string | null;
+    entityId?: string | null;
+    businessUnitId?: string | null;
+  } = {},
 ): Promise<string> {
   const email = overrides.email ?? `test-${role}-${crypto.randomUUID()}@algihaz.local`;
   const passwordHash = await hashPassword('Password123!');
   const [user] = await ds.query(
-    `INSERT INTO users (id, "fullName", email, "passwordHash", "isActive")
-     VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id`,
-    [overrides.fullName ?? 'Test User', email, passwordHash, overrides.isActive ?? true],
+    `INSERT INTO users (id, "fullName", email, "passwordHash", "isActive", "departmentId", "entityId", "businessUnitId")
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      overrides.fullName ?? 'Test User',
+      email,
+      passwordHash,
+      overrides.isActive ?? true,
+      overrides.departmentId ?? null,
+      overrides.entityId ?? null,
+      overrides.businessUnitId ?? null,
+    ],
   );
   const [roleRow] = await ds.query(`SELECT id FROM roles WHERE name = $1`, [role]);
   await ds.query(`INSERT INTO user_roles ("userId", "roleId") VALUES ($1, $2)`, [user.id, roleRow.id]);
