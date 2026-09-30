@@ -10,7 +10,7 @@ type SimpleResourceRow = { id: string; name: string; isActive: boolean };
 
 export function registerSimpleMasterDataResource<T extends SimpleResourceRow & ObjectLiteral>(
   app: FastifyInstance,
-  options: { path: string; entity: EntityTarget<T>; auditPrefix: string },
+  options: { path: string; entity: EntityTarget<T>; auditPrefix: string; tag: string },
 ): void {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
   const itemSchema = z.object({ id: z.string(), name: z.string(), isActive: z.boolean() });
@@ -20,14 +20,14 @@ export function registerSimpleMasterDataResource<T extends SimpleResourceRow & O
 
   typedApp.get(options.path, {
     preHandler: [app.authenticate],
-    schema: { response: { 200: z.array(itemSchema) } },
+    schema: { tags: [options.tag], security: [{ bearerAuth: [] }], response: { 200: z.array(itemSchema) } },
   }, async () => {
     return app.dataSource.getRepository(options.entity).find({ order: { name: 'ASC' } as never });
   });
 
   typedApp.post(options.path, {
     preHandler: [app.authenticate, requireRole(['admin'])],
-    schema: { body: createBodySchema, response: { 201: itemSchema } },
+    schema: { tags: [options.tag], security: [{ bearerAuth: [] }], body: createBodySchema, response: { 201: itemSchema } },
   }, async (request, reply) => {
     const repo = app.dataSource.getRepository(options.entity);
     const existing = await repo.findOne({ where: { name: request.body.name } as never });
@@ -41,14 +41,14 @@ export function registerSimpleMasterDataResource<T extends SimpleResourceRow & O
 
   typedApp.patch(`${options.path}/:id`, {
     preHandler: [app.authenticate, requireRole(['admin'])],
-    schema: { params: idParamsSchema, body: updateBodySchema, response: { 200: itemSchema } },
+    schema: { tags: [options.tag], security: [{ bearerAuth: [] }], params: idParamsSchema, body: updateBodySchema, response: { 200: itemSchema } },
   }, async (request) => {
     const repo = app.dataSource.getRepository(options.entity);
     const row = await repo.findOne({ where: { id: request.params.id } as never });
     if (!row) {
       throw new NotFoundError('Not found');
     }
-    const before = { name: row.name, isActive: row.isActive };
+    const before = { id: row.id, name: row.name, isActive: row.isActive };
     if (request.body.name !== undefined) row.name = request.body.name;
     if (request.body.isActive !== undefined) row.isActive = request.body.isActive;
     await repo.save(row);
@@ -56,7 +56,7 @@ export function registerSimpleMasterDataResource<T extends SimpleResourceRow & O
       actorId: request.user.id,
       action: `${options.auditPrefix}.updated`,
       beforeValue: before,
-      afterValue: { name: row.name, isActive: row.isActive },
+      afterValue: { id: row.id, name: row.name, isActive: row.isActive },
     });
     return row;
   });

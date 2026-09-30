@@ -34,7 +34,7 @@ export async function updateEntity(
   if (!entity) {
     throw new NotFoundError('Entity not found');
   }
-  const before = { name: entity.name, code: entity.code, isActive: entity.isActive };
+  const before = { id: entity.id, name: entity.name, code: entity.code, isActive: entity.isActive };
   if (input.name !== undefined) entity.name = input.name;
   if (input.code !== undefined) entity.code = input.code;
   if (input.isActive !== undefined) entity.isActive = input.isActive;
@@ -43,7 +43,7 @@ export async function updateEntity(
     actorId,
     action: 'entity.updated',
     beforeValue: before,
-    afterValue: { name: entity.name, code: entity.code, isActive: entity.isActive },
+    afterValue: { id: entity.id, name: entity.name, code: entity.code, isActive: entity.isActive },
   });
   return entity;
 }
@@ -85,7 +85,7 @@ export async function updateBusinessUnit(
   if (!bu) {
     throw new NotFoundError('Business unit not found');
   }
-  const before = { name: bu.name, isActive: bu.isActive };
+  const before = { id: bu.id, name: bu.name, isActive: bu.isActive };
   if (input.name !== undefined) bu.name = input.name;
   if (input.isActive !== undefined) bu.isActive = input.isActive;
   await repo.save(bu);
@@ -93,7 +93,7 @@ export async function updateBusinessUnit(
     actorId,
     action: 'business_unit.updated',
     beforeValue: before,
-    afterValue: { name: bu.name, isActive: bu.isActive },
+    afterValue: { id: bu.id, name: bu.name, isActive: bu.isActive },
   });
   return bu;
 }
