@@ -2,15 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
-
-function adminToken(app: ReturnType<typeof buildTestApp>) {
-  return app.signAccessToken({ id: ADMIN_ID, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('POST /users', () => {
   let ds: DataSource;
+  let adminId: string;
+
+  function adminToken(app: ReturnType<typeof buildTestApp>) {
+    return app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
@@ -28,6 +28,7 @@ describe('POST /users', () => {
     await ds.query('DELETE FROM audit_log');
     await ds.query('DELETE FROM user_roles');
     await ds.query('DELETE FROM users');
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   it('creates a user defaulted to the requester role (PR-31)', async () => {
@@ -79,7 +80,8 @@ describe('POST /users', () => {
   it('rejects creation by a non-admin role', async () => {
     const app = buildTestApp(ds);
     await app.ready();
-    const token = app.signAccessToken({ id: ADMIN_ID, role: 'legal_manager', departmentId: null, entityId: null, businessUnitId: null });
+    const legalManagerId = await seedUserWithRole(ds, 'legal_manager');
+    const token = app.signAccessToken({ id: legalManagerId, role: 'legal_manager', departmentId: null, entityId: null, businessUnitId: null });
 
     const res = await app.inject({
       method: 'POST',
@@ -126,6 +128,37 @@ describe('POST /users', () => {
     });
 
     expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('rolls back the user row if the role assignment fails, rather than leaving a roleless user behind (code review finding)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+
+    // Force the second write inside createUser's transaction (assigning the
+    // 'requester' role) to fail, by temporarily renaming that role so the
+    // findOneOrFail lookup throws. Proves the transaction actually rolls
+    // back the first write (the user row) rather than leaving a user with
+    // no role — previously unrecoverable via the API (permanent 500s on
+    // login, GET /users/:id, and the whole GET /users page).
+    await ds.query(`UPDATE roles SET name = 'requester_renamed' WHERE name = 'requester'`);
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { fullName: 'Should Not Exist', email: 'rollback-check@algihaz.local', password: 'Password123!' },
+      });
+
+      expect(res.statusCode).toBe(500);
+
+      const rows = await ds.query(`SELECT id FROM users WHERE email = 'rollback-check@algihaz.local'`);
+      expect(rows).toHaveLength(0);
+    } finally {
+      await ds.query(`UPDATE roles SET name = 'requester' WHERE name = 'requester_renamed'`);
+    }
+
     await app.close();
   });
 });

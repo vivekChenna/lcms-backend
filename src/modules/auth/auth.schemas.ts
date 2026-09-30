@@ -9,6 +9,11 @@ export const refreshBodySchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+export const changePasswordBodySchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
 export const sessionResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),

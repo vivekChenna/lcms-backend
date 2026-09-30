@@ -1,12 +1,14 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Role, RoleName } from './entities/role.entity';
 import { UserRole } from './entities/user-role.entity';
 import { hashPassword } from '../../shared/password';
+import { revokeAllRefreshTokens } from '../auth/auth.service';
 import { logAuditEvent } from '../audit/audit.service';
 import { Department } from '../master-data/entities/department.entity';
 import { OrgEntity } from '../master-data/entities/org-entity.entity';
 import { BusinessUnit } from '../master-data/entities/business-unit.entity';
+import { deactivateRoutingRulesForIneligibleTarget } from '../master-data/routing-rules.service';
 import { ConflictError, NotFoundError, ValidationError, ForbiddenError } from '../../shared/errors';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
 
@@ -43,7 +45,7 @@ function toUserWithRole(user: User, role: RoleName): UserWithRole {
 }
 
 export async function assignRole(
-  dataSource: DataSource,
+  dataSource: DataSource | EntityManager,
   userId: string,
   roleId: string,
   assignedBy: string,
@@ -66,7 +68,7 @@ export type CreateUserInput = {
 
 async function assertValidOrgReferences(
   dataSource: DataSource,
-  input: { departmentId?: string; entityId?: string; businessUnitId?: string },
+  input: { departmentId?: string | null; entityId?: string | null; businessUnitId?: string | null },
 ): Promise<void> {
   if (input.departmentId) {
     const department = await dataSource.getRepository(Department).findOne({ where: { id: input.departmentId } });
@@ -104,22 +106,37 @@ export async function createUser(
   await assertValidOrgReferences(dataSource, input);
 
   const passwordHash = await hashPassword(input.password);
-  const user = await userRepo.save(
-    userRepo.create({
-      fullName: input.fullName,
-      email,
-      passwordHash,
-      designation: input.designation ?? null,
-      phone: input.phone ?? null,
-      departmentId: input.departmentId ?? null,
-      entityId: input.entityId ?? null,
-      businessUnitId: input.businessUnitId ?? null,
-      isActive: true,
-    }),
-  );
 
-  const requesterRole = await dataSource.getRepository(Role).findOneOrFail({ where: { name: 'requester' as RoleName } });
-  await assignRole(dataSource, user.id, requesterRole.id, actorId);
+  // The user row and its role row are two writes that both have to land for
+  // the user to be usable at all: loadAuthenticatedUser (every login, every
+  // authenticated request) does a findOneOrFail on user_roles, so a user
+  // that exists without a role row is permanently broken — login 500s,
+  // GET /users/:id 500s, and GET /users 500s for the whole page containing
+  // them (the role-name column fails its response-schema enum). A crash
+  // between these two writes previously left exactly that half-created row
+  // with no way to recover via the API. Wrapped in a transaction so either
+  // both land or neither does (code review finding — scoped to this pair;
+  // the broader mutation+audit transaction question elsewhere is deferred).
+  const user = await dataSource.transaction(async (manager) => {
+    const created = await manager.getRepository(User).save(
+      manager.getRepository(User).create({
+        fullName: input.fullName,
+        email,
+        passwordHash,
+        designation: input.designation ?? null,
+        phone: input.phone ?? null,
+        departmentId: input.departmentId ?? null,
+        entityId: input.entityId ?? null,
+        businessUnitId: input.businessUnitId ?? null,
+        isActive: true,
+      }),
+    );
+
+    const requesterRole = await manager.getRepository(Role).findOneOrFail({ where: { name: 'requester' as RoleName } });
+    await assignRole(manager, created.id, requesterRole.id, actorId);
+
+    return created;
+  });
 
   await logAuditEvent(dataSource, {
     actorId,
@@ -188,9 +205,13 @@ export async function updateUserRole(
   await logAuditEvent(dataSource, {
     actorId,
     action: 'user.role_changed',
-    beforeValue: { roleId: previous?.roleId ?? null },
-    afterValue: { roleId: role.id, roleName: role.name },
+    beforeValue: { userId, email: user.email, roleId: previous?.roleId ?? null },
+    afterValue: { userId, email: user.email, roleId: role.id, roleName: role.name },
   });
+
+  if (roleName !== 'legal_rep' && roleName !== 'legal_manager') {
+    await deactivateRoutingRulesForIneligibleTarget(dataSource, actorId, userId);
+  }
 
   return toUserWithRole(user, role.name);
 }
@@ -215,9 +236,124 @@ export async function deactivateUser(dataSource: DataSource, actorId: string, us
   await logAuditEvent(dataSource, {
     actorId,
     action: 'user.deactivated',
-    beforeValue: { isActive: true },
-    afterValue: { isActive: false },
+    beforeValue: { userId, email: user.email, isActive: true },
+    afterValue: { userId, email: user.email, isActive: false },
+  });
+
+  await deactivateRoutingRulesForIneligibleTarget(dataSource, actorId, userId);
+
+  return toUserWithRole(user, role.name);
+}
+
+export async function activateUser(dataSource: DataSource, actorId: string, userId: string): Promise<UserWithRole> {
+  const userRepo = dataSource.getRepository(User);
+  const user = await userRepo.findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const userRole = await dataSource.getRepository(UserRole).findOneOrFail({ where: { userId } });
+  const role = await dataSource.getRepository(Role).findOneOrFail({ where: { id: userRole.roleId } });
+
+  if (user.isActive) {
+    return toUserWithRole(user, role.name);
+  }
+
+  user.isActive = true;
+  await userRepo.save(user);
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    action: 'user.activated',
+    beforeValue: { userId, email: user.email, isActive: false },
+    afterValue: { userId, email: user.email, isActive: true },
   });
 
   return toUserWithRole(user, role.name);
+}
+
+export type UpdateUserInput = {
+  fullName?: string;
+  designation?: string | null;
+  phone?: string | null;
+  departmentId?: string | null;
+  entityId?: string | null;
+  businessUnitId?: string | null;
+};
+
+export async function updateUser(
+  dataSource: DataSource,
+  actorId: string,
+  userId: string,
+  input: UpdateUserInput,
+): Promise<UserWithRole> {
+  const userRepo = dataSource.getRepository(User);
+  const user = await userRepo.findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  await assertValidOrgReferences(dataSource, input);
+
+  const before = {
+    userId,
+    fullName: user.fullName,
+    designation: user.designation,
+    phone: user.phone,
+    departmentId: user.departmentId,
+    entityId: user.entityId,
+    businessUnitId: user.businessUnitId,
+  };
+
+  if (input.fullName !== undefined) user.fullName = input.fullName;
+  if (input.designation !== undefined) user.designation = input.designation;
+  if (input.phone !== undefined) user.phone = input.phone;
+  if (input.departmentId !== undefined) user.departmentId = input.departmentId;
+  if (input.entityId !== undefined) user.entityId = input.entityId;
+  if (input.businessUnitId !== undefined) user.businessUnitId = input.businessUnitId;
+
+  await userRepo.save(user);
+
+  const userRole = await dataSource.getRepository(UserRole).findOneOrFail({ where: { userId } });
+  const role = await dataSource.getRepository(Role).findOneOrFail({ where: { id: userRole.roleId } });
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    action: 'user.updated',
+    beforeValue: before,
+    afterValue: {
+      userId,
+      fullName: user.fullName,
+      designation: user.designation,
+      phone: user.phone,
+      departmentId: user.departmentId,
+      entityId: user.entityId,
+      businessUnitId: user.businessUnitId,
+    },
+  });
+
+  return toUserWithRole(user, role.name);
+}
+
+export async function resetPassword(
+  dataSource: DataSource,
+  actorId: string,
+  userId: string,
+  newPassword: string,
+): Promise<void> {
+  const userRepo = dataSource.getRepository(User);
+  const user = await userRepo.findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await userRepo.update({ id: userId }, { passwordHash });
+  await revokeAllRefreshTokens(dataSource, userId);
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    action: 'user.password_reset',
+    afterValue: { userId, email: user.email },
+  });
 }

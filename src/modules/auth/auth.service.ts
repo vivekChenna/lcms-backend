@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
-import type { DataSource } from 'typeorm';
+import { IsNull, type DataSource } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../users/entities/role.entity';
 import { UserRole } from '../users/entities/user-role.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { verifyPassword } from '../../shared/password';
-import { UnauthorizedError } from '../../shared/errors';
+import { verifyPassword, hashPassword } from '../../shared/password';
+import { UnauthorizedError, ValidationError } from '../../shared/errors';
 import type { AuthenticatedUser } from '../../shared/rbac';
 
 export function hashToken(token: string): string {
@@ -63,6 +63,30 @@ export async function login(
 
 export async function logout(dataSource: DataSource, presentedToken: string): Promise<void> {
   await dataSource.getRepository(RefreshToken).update({ tokenHash: hashToken(presentedToken) }, { revokedAt: new Date() });
+}
+
+// Used after a password change (self-service or admin reset) — the new
+// password is only useful if every session minted under the old one is
+// also cut off, otherwise a credential that was just changed (because it
+// may have leaked) still has live sessions riding on it.
+export async function revokeAllRefreshTokens(dataSource: DataSource, userId: string): Promise<void> {
+  await dataSource.getRepository(RefreshToken).update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
+}
+
+export async function changePassword(
+  dataSource: DataSource,
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await dataSource.getRepository(User).findOneOrFail({ where: { id: userId } });
+  const currentOk = await verifyPassword(user.passwordHash, currentPassword);
+  if (!currentOk) {
+    throw new ValidationError('Current password is incorrect');
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await dataSource.getRepository(User).update({ id: userId }, { passwordHash });
+  await revokeAllRefreshTokens(dataSource, userId);
 }
 
 export async function refreshSession(

@@ -44,3 +44,16 @@ export const userIdParamsSchema = z.object({
 export const updateUserRoleBodySchema = z.object({
   role: z.enum(ROLE_NAMES),
 });
+
+export const updateUserBodySchema = z.object({
+  fullName: z.string().min(1).optional(),
+  designation: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  departmentId: z.string().uuid().nullable().optional(),
+  entityId: z.string().uuid().nullable().optional(),
+  businessUnitId: z.string().uuid().nullable().optional(),
+});
+
+export const resetPasswordBodySchema = z.object({
+  newPassword: z.string().min(8),
+});

@@ -89,4 +89,46 @@ describe('POST /auth/login', () => {
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
     await app.close();
   });
+
+  it('rate-limits repeated attempts against the same email (code review finding — no brute-force protection existed)', async () => {
+    await seedAdmin(ds, { email: 'admin@lcms.local', password: 'Correct123!' });
+    const app = buildTestApp(ds);
+    await app.ready();
+
+    const attempt = () => app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'admin@lcms.local', password: 'wrong-password' },
+    });
+
+    const results = [];
+    for (let i = 0; i < 6; i += 1) {
+      results.push(await attempt());
+    }
+
+    expect(results.slice(0, 5).every((r) => r.statusCode === 401)).toBe(true);
+    expect(results[5].statusCode).toBe(429);
+
+    await app.close();
+  });
+
+  it('does not rate-limit a different email from the same caller', async () => {
+    await seedAdmin(ds, { email: 'admin@lcms.local', password: 'Correct123!' });
+    await seedAdmin(ds, { email: 'other@lcms.local', password: 'Correct123!' });
+    const app = buildTestApp(ds);
+    await app.ready();
+
+    for (let i = 0; i < 5; i += 1) {
+      await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'admin@lcms.local', password: 'wrong-password' } });
+    }
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'other@lcms.local', password: 'Correct123!' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    await app.close();
+  });
 });

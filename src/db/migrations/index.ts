@@ -6,6 +6,7 @@ import { CreateCaseTypes1700000005000 } from './1700000005000-create-case-types'
 import { CreateRoutingRules1700000006000 } from './1700000006000-create-routing-rules';
 import { AddUserOrgFks1700000007000 } from './1700000007000-add-user-org-fks';
 import { AddMasterDataCompositeUniques1700000008000 } from './1700000008000-add-master-data-composite-uniques';
+import { AddRefreshTokenHashIndex1700000009000 } from './1700000009000-add-refresh-token-hash-index';
 
 export const migrations = [
   CreateUsersAndRoles1700000001000,
@@ -16,4 +17,5 @@ export const migrations = [
   CreateRoutingRules1700000006000,
   AddUserOrgFks1700000007000,
   AddMasterDataCompositeUniques1700000008000,
+  AddRefreshTokenHashIndex1700000009000,
 ];
