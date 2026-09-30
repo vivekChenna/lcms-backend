@@ -2,12 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
-
-const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
-
-function adminToken(app: ReturnType<typeof buildTestApp>) {
-  return app.signAccessToken({ id: ADMIN_ID, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
-}
+import { seedUserWithRole } from '../../helpers/seed-user';
 
 async function createLegalRep(app: ReturnType<typeof buildTestApp>, token: string, email: string): Promise<string> {
   const created = await app.inject({
@@ -28,6 +23,11 @@ async function createLegalRep(app: ReturnType<typeof buildTestApp>, token: strin
 
 describe('/routing-rules', () => {
   let ds: DataSource;
+  let adminId: string;
+
+  function adminToken(app: ReturnType<typeof buildTestApp>) {
+    return app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+  }
 
   beforeAll(async () => {
     ds = buildTestDataSource();
@@ -51,6 +51,7 @@ describe('/routing-rules', () => {
     await ds.query('DELETE FROM audit_log');
     await ds.query('DELETE FROM user_roles');
     await ds.query('DELETE FROM users');
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   it('creates a routing rule targeting a legal_rep user', async () => {
@@ -159,6 +160,88 @@ describe('/routing-rules', () => {
     });
 
     expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('auto-deactivates a routing rule when its target is deactivated (code review finding — a rule left active would silently misroute to someone who can no longer act)', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+    const repId = await createLegalRep(app, token, 'rep7@algihaz.local');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/routing-rules',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { matchCriteria: {}, targetLegalRepId: repId, priorityOrder: 1 },
+    });
+    const ruleId = created.json().id;
+
+    await app.inject({ method: 'PATCH', url: `/users/${repId}/deactivate`, headers: { authorization: `Bearer ${token}` } });
+
+    const [rule] = await ds.query(`SELECT "isActive" FROM routing_rules WHERE id = $1`, [ruleId]);
+    expect(rule.isActive).toBe(false);
+
+    const [auditEntry] = await ds.query(
+      `SELECT "beforeValue", "afterValue" FROM audit_log WHERE action = 'routing_rule.auto_deactivated'`,
+    );
+    expect(auditEntry.beforeValue.isActive).toBe(true);
+    expect(auditEntry.afterValue.isActive).toBe(false);
+
+    await app.close();
+  });
+
+  it('auto-deactivates a routing rule when its target is demoted off legal_rep/legal_manager', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+    const repId = await createLegalRep(app, token, 'rep8@algihaz.local');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/routing-rules',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { matchCriteria: {}, targetLegalRepId: repId, priorityOrder: 1 },
+    });
+    const ruleId = created.json().id;
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/users/${repId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'viewer' },
+    });
+
+    const [rule] = await ds.query(`SELECT "isActive" FROM routing_rules WHERE id = $1`, [ruleId]);
+    expect(rule.isActive).toBe(false);
+
+    await app.close();
+  });
+
+  it('leaves a routing rule active when its target is reassigned between legal_rep and legal_manager', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = adminToken(app);
+    const repId = await createLegalRep(app, token, 'rep9@algihaz.local');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/routing-rules',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { matchCriteria: {}, targetLegalRepId: repId, priorityOrder: 1 },
+    });
+    const ruleId = created.json().id;
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/users/${repId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'legal_manager' },
+    });
+
+    const [rule] = await ds.query(`SELECT "isActive" FROM routing_rules WHERE id = $1`, [ruleId]);
+    expect(rule.isActive).toBe(true);
+
     await app.close();
   });
 });

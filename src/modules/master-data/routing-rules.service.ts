@@ -48,6 +48,36 @@ export async function createRoutingRule(
   return rule;
 }
 
+// Deactivating a user, or moving them off legal_rep/legal_manager, doesn't
+// retarget or delete routing rules that already point at them — it would be
+// surprising for an admin action on a *user* to silently rewrite *routing*
+// configuration. Instead it deactivates the affected rules: assertValidLegalRep
+// already guarantees every active rule's target was eligible when the rule
+// was created or last updated, so a rule still active with an ineligible
+// target means that target became ineligible after the fact, and leaving it
+// active would silently misroute future cases to someone who can no longer
+// act on them (code review finding — closes the gap #9's commit message
+// described but didn't fully cover).
+export async function deactivateRoutingRulesForIneligibleTarget(
+  dataSource: DataSource,
+  actorId: string,
+  targetLegalRepId: string,
+): Promise<void> {
+  const repo = dataSource.getRepository(RoutingRule);
+  const affected = await repo.find({ where: { targetLegalRepId, isActive: true } });
+  for (const rule of affected) {
+    const before = { id: rule.id, isActive: true };
+    rule.isActive = false;
+    await repo.save(rule);
+    await logAuditEvent(dataSource, {
+      actorId,
+      action: 'routing_rule.auto_deactivated',
+      beforeValue: before,
+      afterValue: { id: rule.id, isActive: false, reason: 'target no longer an active legal_rep/legal_manager' },
+    });
+  }
+}
+
 export async function updateRoutingRule(
   dataSource: DataSource,
   actorId: string,
