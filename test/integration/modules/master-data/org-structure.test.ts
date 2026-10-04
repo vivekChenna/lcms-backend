@@ -33,7 +33,8 @@ describe('/entities, /business-units', () => {
     const token = adminToken(app);
 
     const res = await app.inject({ method: 'GET', url: '/entities', headers: { authorization: `Bearer ${token}` } });
-    expect(res.json()).toHaveLength(10);
+    const codes = res.json().map((e: { code: string }) => e.code);
+    expect(codes).toEqual(expect.arrayContaining(['AGC', 'CCE', 'CRAFT', 'NEWFAB', 'SEP', 'SELCO', 'LAMPRELL', 'AIGC', 'AMC', 'ENSHORE']));
 
     await app.close();
   });
