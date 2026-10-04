@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## information-requests (Phase 2, sub-project 2)
 
+- [Task 6 — Reopen an information request](decisions/information-requests/task-06-reopen.md)
 - [Task 5 — Respond to an information request](decisions/information-requests/task-05-respond.md)
 - [Task 4 — Raise an information request](decisions/information-requests/task-04-raise.md)
 - [Task 3 — Case-transition helpers (markCaseWaitingOnInput / markCaseInProgress)](decisions/information-requests/task-03-case-transition-helpers.md)

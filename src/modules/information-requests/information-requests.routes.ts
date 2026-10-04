@@ -2,10 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import type { InformationRequest } from './entities/information-request.entity';
-import { raiseInformationRequest, respondToInformationRequest } from './information-requests.service';
+import { raiseInformationRequest, respondToInformationRequest, reopenInformationRequest } from './information-requests.service';
 import {
   raiseInformationRequestBodySchema,
   respondInformationRequestBodySchema,
+  reopenInformationRequestBodySchema,
   informationRequestIdParamsSchema,
   informationRequestResponseSchema,
 } from './information-requests.schemas';
@@ -53,6 +54,20 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
     },
   }, async (request) => {
     const infoRequest = await respondToInformationRequest(app.dataSource, request.user.id, request.params.id, request.body.responseText);
+    return serializeInformationRequest(infoRequest);
+  });
+
+  typedApp.post('/information-requests/:id/reopen', {
+    preHandler: [app.authenticate, requireRole(['legal_rep'])],
+    schema: {
+      tags: ['Information Requests'],
+      security: [{ bearerAuth: [] }],
+      params: informationRequestIdParamsSchema,
+      body: reopenInformationRequestBodySchema,
+      response: { 200: informationRequestResponseSchema },
+    },
+  }, async (request) => {
+    const infoRequest = await reopenInformationRequest(app.dataSource, request.user.id, request.params.id, request.body.comment);
     return serializeInformationRequest(infoRequest);
   });
 }

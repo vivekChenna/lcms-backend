@@ -108,3 +108,48 @@ export async function respondToInformationRequest(
 
   return infoRequest;
 }
+
+export async function reopenInformationRequest(
+  dataSource: DataSource,
+  actorId: string,
+  requestId: string,
+  comment: string,
+): Promise<InformationRequest> {
+  const superseded = await loadInformationRequestOrThrow(dataSource, requestId);
+  if (superseded.raisedById !== actorId) {
+    throw new ForbiddenError('Only the legal representative who raised this request can reopen it');
+  }
+  if (superseded.status !== 'answered') {
+    throw new ConflictError('Only an answered information request can be reopened');
+  }
+
+  const repo = dataSource.getRepository(InformationRequest);
+  superseded.status = 'superseded';
+  await repo.save(superseded);
+
+  const reopened = await repo.save(
+    repo.create({
+      caseId: superseded.caseId,
+      subject: superseded.subject,
+      requirementDescription: comment,
+      raisedById: superseded.raisedById,
+      responderId: superseded.responderId,
+      dueDate: null,
+      status: 'open',
+      responseText: null,
+      reopenedFromId: superseded.id,
+    }),
+  );
+
+  await markCaseWaitingOnInput(dataSource, actorId, superseded.caseId);
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: superseded.caseId,
+    action: 'info_request.reopened',
+    beforeValue: { id: superseded.id, status: 'answered' },
+    afterValue: { id: reopened.id, caseId: superseded.caseId, reopenedFromId: superseded.id },
+  });
+
+  return reopened;
+}
