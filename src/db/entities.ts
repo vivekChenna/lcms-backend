@@ -11,9 +11,11 @@ import { BusinessUnit } from '../modules/master-data/entities/business-unit.enti
 import { CaseType } from '../modules/master-data/entities/case-type.entity';
 import { RoutingRule } from '../modules/master-data/entities/routing-rule.entity';
 import { Case } from '../modules/cases/entities/case.entity';
+import { InformationRequest } from '../modules/information-requests/entities/information-request.entity';
 
 export const entities = [
   Role, User, UserRole, RefreshToken, AuditLog,
   Department, CaseCategory, ClosureOutcome, OrgEntity, BusinessUnit, CaseType, RoutingRule,
   Case,
+  InformationRequest,
 ];

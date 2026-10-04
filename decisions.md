@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## information-requests (Phase 2, sub-project 2)
+
+- [Task 1 — InformationRequest entity, migration, and test fixtures](decisions/information-requests/task-01-entity-migration-fixtures.md)
+
 ## case-core (Phase 2, sub-project 1)
 
 - [Final review fix wave — VC-03/04 edit bypass, legal_manager accept/reject, closure validation, test isolation](decisions/case-core/final-review-fixes.md)
