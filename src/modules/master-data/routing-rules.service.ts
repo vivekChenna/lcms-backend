@@ -6,7 +6,7 @@ import { Role } from '../users/entities/role.entity';
 import { NotFoundError, ValidationError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 
-async function assertValidLegalRep(dataSource: DataSource, userId: string): Promise<void> {
+export async function assertValidLegalRep(dataSource: DataSource, userId: string): Promise<void> {
   const user = await dataSource.getRepository(User).findOne({ where: { id: userId } });
   if (!user || !user.isActive) {
     throw new ValidationError('Unknown or inactive targetLegalRepId');
