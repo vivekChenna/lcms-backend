@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## information-requests (Phase 2, sub-project 2)
 
+- [Task 9 — Closure guard: no open information requests (VC-12)](decisions/information-requests/task-09-closure-guard.md)
 - [Task 8 — Requester-as-responder visibility extension (case core)](decisions/information-requests/task-08-responder-visibility.md)
 - [Task 7 — List information requests for a case](decisions/information-requests/task-07-list.md)
 - [Task 6 — Reopen an information request](decisions/information-requests/task-06-reopen.md)

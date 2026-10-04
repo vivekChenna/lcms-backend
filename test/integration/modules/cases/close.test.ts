@@ -4,6 +4,7 @@ import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
+import { seedInformationRequest } from '../../helpers/seed-information-request';
 
 describe('PATCH /cases/:id/close', () => {
   let ds: DataSource;
@@ -20,6 +21,7 @@ describe('PATCH /cases/:id/close', () => {
   });
 
   async function reset() {
+    await ds.query('DELETE FROM information_requests');
     await ds.query('DELETE FROM audit_log');
     await ds.query('DELETE FROM cases');
     await ds.query('DELETE FROM closure_outcomes');
@@ -143,6 +145,30 @@ describe('PATCH /cases/:id/close', () => {
     });
 
     expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('rejects closing a case with an open information request (VC-12)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId, status: 'open' });
+    const outcomeId = await seedOutcome();
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/cases/${caseRow.id}/close`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { confirm: true, closureSummary: 'x', closureOutcomeId: outcomeId },
+    });
+
+    expect(res.statusCode).toBe(409);
     await app.close();
   });
 });

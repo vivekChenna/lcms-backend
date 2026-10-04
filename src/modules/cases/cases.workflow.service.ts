@@ -1,10 +1,11 @@
 import type { DataSource } from 'typeorm';
 import { Case, CaseStatus } from './entities/case.entity';
 import { assertTransition } from './state-machine';
-import { NotFoundError, ForbiddenError, ValidationError } from '../../shared/errors';
+import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 import { assertValidLegalRep } from '../master-data/routing-rules.service';
 import { ClosureOutcome } from '../master-data/entities/closure-outcome.entity';
+import { InformationRequest } from '../information-requests/entities/information-request.entity';
 
 export async function loadCaseOrThrow(dataSource: DataSource, caseId: string): Promise<Case> {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
@@ -118,6 +119,17 @@ export async function closeCase(
   const closureOutcome = await dataSource.getRepository(ClosureOutcome).findOne({ where: { id: input.closureOutcomeId } });
   if (!closureOutcome || !closureOutcome.isActive) {
     throw new ValidationError('Unknown or inactive closureOutcomeId');
+  }
+
+  // VC-12/WF-10: closure is blocked while any information request on this
+  // case remains open. Imports only the InformationRequest entity (a leaf
+  // module with no dependency back on cases), not its service — avoids the
+  // real cycle risk, which is between the two service files, not the entity.
+  const openRequestCount = await dataSource.getRepository(InformationRequest).count({
+    where: { caseId: caseRow.id, status: 'open' },
+  });
+  if (openRequestCount > 0) {
+    throw new ConflictError('Case cannot be closed while an information request is still open (VC-12)');
   }
 
   const before = { id: caseRow.id, status: caseRow.status };
