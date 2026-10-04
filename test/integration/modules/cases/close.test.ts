@@ -168,4 +168,54 @@ describe('PATCH /cases/:id/close', () => {
     expect(res.statusCode).toBe(409);
     await app.close();
   });
+
+  it('concurrent raise and close on the same case never both succeed (case row lock closes the VC-12 race)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const outcomeId = await seedOutcome();
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const [closeRes, raiseRes] = await Promise.all([
+      app.inject({
+        method: 'PATCH',
+        url: `/cases/${caseRow.id}/close`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { confirm: true, closureSummary: 'x', closureOutcomeId: outcomeId },
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/cases/${caseRow.id}/information-requests`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { subject: 'Need clarification', requirementDescription: 'x', responderId },
+      }),
+    ]);
+
+    // Whichever transaction's lock wins, the other must see the committed
+    // result and reject cleanly — never both succeed, and never a Closed
+    // case with an open information request. Exactly one of (close: 200,
+    // raise: 201) happens; the loser always gets 409.
+    const succeeded = [closeRes.statusCode === 200, raiseRes.statusCode === 201].filter(Boolean);
+    expect(succeeded).toHaveLength(1);
+    if (closeRes.statusCode !== 200) expect(closeRes.statusCode).toBe(409);
+    if (raiseRes.statusCode !== 201) expect(raiseRes.statusCode).toBe(409);
+
+    const [caseAfter] = await ds.query(`SELECT status FROM cases WHERE id = $1`, [caseRow.id]);
+    const [{ count: openCount }] = await ds.query(
+      `SELECT COUNT(*)::int AS count FROM information_requests WHERE "caseId" = $1 AND status = 'open'`,
+      [caseRow.id],
+    );
+    if (caseAfter.status === 'Closed') {
+      expect(openCount).toBe(0);
+    } else {
+      expect(caseAfter.status).toBe('Waiting on Input');
+      expect(openCount).toBe(1);
+    }
+    await app.close();
+  });
 });

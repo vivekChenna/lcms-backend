@@ -91,65 +91,82 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
   return caseRow;
 }
 
+// Locks the case row (SELECT ... FOR UPDATE) before the VC-12 open-request
+// check below, and runs the whole close inside one transaction — same
+// pattern information-requests.service.ts uses for raise/respond/reopen.
+// Without this, a concurrent raise (which also locks the case row, see
+// information-requests.service.ts) and closeCase could each read "no open
+// requests" / "case not yet Closed" before the other commits, letting both
+// proceed: a case closes while an information request opens on it.
+async function lockCaseOrThrow(manager: EntityManager, caseId: string): Promise<Case> {
+  const caseRow = await manager.getRepository(Case).findOne({ where: { id: caseId }, lock: { mode: 'pessimistic_write' } });
+  if (!caseRow) {
+    throw new NotFoundError('Case not found');
+  }
+  return caseRow;
+}
+
 export async function closeCase(
   dataSource: DataSource,
   actor: { id: string; role: string },
   caseId: string,
   input: { closureSummary: string; closureOutcomeId: string },
 ): Promise<Case> {
-  const caseRow = await loadCaseOrThrow(dataSource, caseId);
-  // Transition validity is checked before authorization (unlike setEscalation,
-  // which has no transition to check): a case still Submitted has no assigned
-  // rep yet, so checking ownership first would misreport VC-14's "wrong status"
-  // case as a 403 instead of the intended 409. See decisions/case-core/task-12-closure.md.
-  assertTransition(caseRow.status as CaseStatus, 'Closed');
-  const isOwningRep = caseRow.assignedLegalRepId === actor.id;
-  const isManagerOrAdmin = actor.role === 'legal_manager' || actor.role === 'admin';
-  if (!isOwningRep && !isManagerOrAdmin) {
-    throw new ForbiddenError('Only the assigned legal representative or a legal manager can close this case');
-  }
+  return dataSource.transaction(async (manager) => {
+    const caseRow = await lockCaseOrThrow(manager, caseId);
+    // Transition validity is checked before authorization (unlike setEscalation,
+    // which has no transition to check): a case still Submitted has no assigned
+    // rep yet, so checking ownership first would misreport VC-14's "wrong status"
+    // case as a 403 instead of the intended 409. See decisions/case-core/task-12-closure.md.
+    assertTransition(caseRow.status as CaseStatus, 'Closed');
+    const isOwningRep = caseRow.assignedLegalRepId === actor.id;
+    const isManagerOrAdmin = actor.role === 'legal_manager' || actor.role === 'admin';
+    if (!isOwningRep && !isManagerOrAdmin) {
+      throw new ForbiddenError('Only the assigned legal representative or a legal manager can close this case');
+    }
 
-  // An unknown/inactive closureOutcomeId would otherwise only be caught by
-  // the database's foreign-key constraint (Postgres 23503), which the error
-  // handler doesn't map to a client error, surfacing as a raw 500. Validate
-  // it up front instead, matching the pattern submitCase uses for its other
-  // master-data foreign keys.
-  const closureOutcome = await dataSource.getRepository(ClosureOutcome).findOne({ where: { id: input.closureOutcomeId } });
-  if (!closureOutcome || !closureOutcome.isActive) {
-    throw new ValidationError('Unknown or inactive closureOutcomeId');
-  }
+    // An unknown/inactive closureOutcomeId would otherwise only be caught by
+    // the database's foreign-key constraint (Postgres 23503), which the error
+    // handler doesn't map to a client error, surfacing as a raw 500. Validate
+    // it up front instead, matching the pattern submitCase uses for its other
+    // master-data foreign keys.
+    const closureOutcome = await manager.getRepository(ClosureOutcome).findOne({ where: { id: input.closureOutcomeId } });
+    if (!closureOutcome || !closureOutcome.isActive) {
+      throw new ValidationError('Unknown or inactive closureOutcomeId');
+    }
 
-  // VC-12/WF-10: closure is blocked while any information request on this
-  // case remains open. Imports only the InformationRequest entity (a leaf
-  // module with no dependency back on cases), not its service — avoids the
-  // real cycle risk, which is between the two service files, not the entity.
-  const openRequestCount = await dataSource.getRepository(InformationRequest).count({
-    where: { caseId: caseRow.id, status: 'open' },
+    // VC-12/WF-10: closure is blocked while any information request on this
+    // case remains open. Imports only the InformationRequest entity (a leaf
+    // module with no dependency back on cases), not its service — avoids the
+    // real cycle risk, which is between the two service files, not the entity.
+    const openRequestCount = await manager.getRepository(InformationRequest).count({
+      where: { caseId: caseRow.id, status: 'open' },
+    });
+    if (openRequestCount > 0) {
+      throw new ConflictError('Case cannot be closed while an information request is still open (VC-12)');
+    }
+
+    const before = { id: caseRow.id, status: caseRow.status };
+    caseRow.status = 'Closed';
+    caseRow.closureSummary = input.closureSummary;
+    caseRow.closureOutcomeId = input.closureOutcomeId;
+    caseRow.closedById = actor.id;
+    caseRow.closedAt = new Date();
+    await manager.getRepository(Case).save(caseRow);
+    await logAuditEvent(manager, {
+      actorId: actor.id,
+      caseId: caseRow.id,
+      action: 'case.closed',
+      beforeValue: before,
+      afterValue: {
+        id: caseRow.id,
+        status: caseRow.status,
+        closureOutcomeId: caseRow.closureOutcomeId,
+        referenceNumber: caseRow.referenceNumber,
+      },
+    });
+    return caseRow;
   });
-  if (openRequestCount > 0) {
-    throw new ConflictError('Case cannot be closed while an information request is still open (VC-12)');
-  }
-
-  const before = { id: caseRow.id, status: caseRow.status };
-  caseRow.status = 'Closed';
-  caseRow.closureSummary = input.closureSummary;
-  caseRow.closureOutcomeId = input.closureOutcomeId;
-  caseRow.closedById = actor.id;
-  caseRow.closedAt = new Date();
-  await dataSource.getRepository(Case).save(caseRow);
-  await logAuditEvent(dataSource, {
-    actorId: actor.id,
-    caseId: caseRow.id,
-    action: 'case.closed',
-    beforeValue: before,
-    afterValue: {
-      id: caseRow.id,
-      status: caseRow.status,
-      closureOutcomeId: caseRow.closureOutcomeId,
-      referenceNumber: caseRow.referenceNumber,
-    },
-  });
-  return caseRow;
 }
 
 export async function setEscalation(
