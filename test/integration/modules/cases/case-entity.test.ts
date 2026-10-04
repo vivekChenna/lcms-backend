@@ -23,9 +23,7 @@ describe('Case entity + migration', () => {
     await ds.query('DELETE FROM user_roles');
     await ds.query('DELETE FROM users');
     await ds.query('DELETE FROM business_units');
-    await ds.query('DELETE FROM entities');
     await ds.query('DELETE FROM case_types');
-    await ds.query('DELETE FROM case_categories');
     await ds.query('DELETE FROM departments');
 
     const master = await seedCaseMasterData(ds);

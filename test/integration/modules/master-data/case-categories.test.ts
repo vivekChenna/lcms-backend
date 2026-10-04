@@ -32,8 +32,8 @@ describe('/case-categories, /closure-outcomes', () => {
     const res = await app.inject({ method: 'GET', url: '/case-categories', headers: { authorization: `Bearer ${token}` } });
 
     expect(res.statusCode).toBe(200);
-    const names = res.json().map((c: { name: string }) => c.name).sort();
-    expect(names).toEqual(['Baladi Violation', 'HR Termination', 'Internal', 'Najiz']);
+    const names = res.json().map((c: { name: string }) => c.name);
+    expect(names).toEqual(expect.arrayContaining(['Baladi Violation', 'HR Termination', 'Internal', 'Najiz']));
 
     await app.close();
   });

@@ -237,15 +237,26 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
   if (caseRow.status !== 'Submitted') {
     throw new ConflictError('Case can only be edited while Submitted');
   }
-  if (input.categoryId && input.categoryId !== caseRow.categoryId) {
+  if (input.categoryId !== undefined) {
     const category = await dataSource.getRepository(CaseCategory).findOne({ where: { id: input.categoryId } });
     if (!category || !category.isActive) {
       throw new ValidationError('Unknown or inactive categoryId');
     }
+    // VC-03: requesters may only ever have cases in the Internal category.
+    // submitCase already enforces this at creation time; re-checking here
+    // closes the gap where a requester submits an Internal case and then
+    // PATCHes categoryId to move it out of Internal.
+    if (actor.role === 'requester' && category.name !== 'Internal') {
+      throw new ValidationError('Requesters may only edit cases into the Internal category (VC-03)');
+    }
   }
   const effectiveCategoryId = input.categoryId ?? caseRow.categoryId;
-  if (input.caseTypeId && input.caseTypeId !== caseRow.caseTypeId) {
-    const caseType = await dataSource.getRepository(CaseType).findOne({ where: { id: input.caseTypeId } });
+  // VC-04: re-validate whenever EITHER categoryId or caseTypeId is present in
+  // the input, not only when caseTypeId itself changed -- changing just the
+  // category can just as easily orphan the case's existing caseTypeId.
+  if (input.categoryId !== undefined || input.caseTypeId !== undefined) {
+    const effectiveCaseTypeId = input.caseTypeId ?? caseRow.caseTypeId;
+    const caseType = await dataSource.getRepository(CaseType).findOne({ where: { id: effectiveCaseTypeId } });
     if (!caseType || !caseType.isActive) {
       throw new ValidationError('Unknown or inactive caseTypeId');
     }

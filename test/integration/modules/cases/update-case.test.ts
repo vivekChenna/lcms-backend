@@ -111,4 +111,52 @@ describe('PATCH /cases/:id', () => {
     expect(res.statusCode).toBe(200);
     await app.close();
   });
+
+  it('rejects a requester editing their Internal case to a non-Internal category (VC-03)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const [internalCategory] = await ds.query(`SELECT id FROM case_categories WHERE name = 'Internal'`);
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, categoryId: internalCategory.id, requesterId });
+    const token = app.signAccessToken({ id: requesterId, role: 'requester', departmentId: master.departmentId, entityId: master.entityId, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/cases/${caseRow.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { categoryId: master.categoryId },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('rejects changing categoryId without caseTypeId when the existing caseType does not belong to the new category (VC-04)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const otherMaster = await seedCaseMasterData(ds);
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const adminId = await seedUserWithRole(ds, 'admin');
+    // caseRow's caseTypeId belongs to master.categoryId; PATCHing categoryId
+    // to otherMaster.categoryId (without touching caseTypeId) must now be
+    // rejected because the existing caseType no longer belongs to it. Acting
+    // as admin (not the requester) isolates this from the separate VC-03
+    // (Internal-only) check covered by the test above.
+    const caseRow = await seedCase(ds, { ...master, requesterId });
+    const token = app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/cases/${caseRow.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { categoryId: otherMaster.categoryId },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

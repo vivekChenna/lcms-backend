@@ -24,7 +24,7 @@ export async function seedCaseMasterData(dataSource: DataSource): Promise<{
   );
   const [entity] = await dataSource.query(
     `INSERT INTO entities (id, name, code) VALUES (gen_random_uuid(), $1, $2) RETURNING id`,
-    [`Entity-${suffix}`, `E${suffix.slice(0, 3).toUpperCase()}`],
+    [`Entity-${suffix}`, `E${suffix.toUpperCase()}`],
   );
   const [businessUnit] = await dataSource.query(
     `INSERT INTO business_units (id, "entityId", name) VALUES (gen_random_uuid(), $1, $2) RETURNING id`,

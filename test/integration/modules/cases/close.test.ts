@@ -124,4 +124,25 @@ describe('PATCH /cases/:id/close', () => {
     expect(res.statusCode).toBe(400);
     await app.close();
   });
+
+  it('rejects an unknown closureOutcomeId with 400, not a raw 500 from the FK constraint', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/cases/${caseRow.id}/close`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { confirm: true, closureSummary: 'Matter resolved via negotiated settlement.', closureOutcomeId: '00000000-0000-0000-0000-000000000000' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

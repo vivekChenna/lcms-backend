@@ -136,7 +136,12 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   typedApp.patch('/cases/:id/accept', {
-    preHandler: [app.authenticate, requireRole(['legal_rep'])],
+    // Assignment (VC-07) and auto-routing can target a legal_manager, not
+    // only a legal_rep; the role gate must admit both so a case assigned to
+    // a legal_manager isn't permanently stuck in Assigned. The service-layer
+    // ownership check (assignedLegalRepId === actorId) still restricts this
+    // to whoever is actually assigned, regardless of role.
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager'])],
     schema: {
       tags: ['Cases'],
       security: [{ bearerAuth: [] }],
@@ -149,7 +154,8 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   typedApp.patch('/cases/:id/reject', {
-    preHandler: [app.authenticate, requireRole(['legal_rep'])],
+    // See /cases/:id/accept above: a legal_manager can also be the assignee.
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager'])],
     schema: {
       tags: ['Cases'],
       security: [{ bearerAuth: [] }],

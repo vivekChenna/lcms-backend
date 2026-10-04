@@ -1,9 +1,10 @@
 import type { DataSource } from 'typeorm';
 import { Case, CaseStatus } from './entities/case.entity';
 import { assertTransition } from './state-machine';
-import { NotFoundError, ForbiddenError } from '../../shared/errors';
+import { NotFoundError, ForbiddenError, ValidationError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 import { assertValidLegalRep } from '../master-data/routing-rules.service';
+import { ClosureOutcome } from '../master-data/entities/closure-outcome.entity';
 
 export async function loadCaseOrThrow(dataSource: DataSource, caseId: string): Promise<Case> {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
@@ -107,6 +108,16 @@ export async function closeCase(
   const isManagerOrAdmin = actor.role === 'legal_manager' || actor.role === 'admin';
   if (!isOwningRep && !isManagerOrAdmin) {
     throw new ForbiddenError('Only the assigned legal representative or a legal manager can close this case');
+  }
+
+  // An unknown/inactive closureOutcomeId would otherwise only be caught by
+  // the database's foreign-key constraint (Postgres 23503), which the error
+  // handler doesn't map to a client error, surfacing as a raw 500. Validate
+  // it up front instead, matching the pattern submitCase uses for its other
+  // master-data foreign keys.
+  const closureOutcome = await dataSource.getRepository(ClosureOutcome).findOne({ where: { id: input.closureOutcomeId } });
+  if (!closureOutcome || !closureOutcome.isActive) {
+    throw new ValidationError('Unknown or inactive closureOutcomeId');
   }
 
   const before = { id: caseRow.id, status: caseRow.status };

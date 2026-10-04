@@ -105,6 +105,24 @@ describe('PATCH /cases/:id/accept and /reject', () => {
     await app.close();
   });
 
+  it('lets a legal_manager who is the assignee accept a case (VC-07 can target a legal_manager)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const managerId = await seedUserWithRole(ds, 'legal_manager');
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Assigned', assignedLegalRepId: managerId });
+    const token = app.signAccessToken({ id: managerId, role: 'legal_manager', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({ method: 'PATCH', url: `/cases/${caseRow.id}/accept`, headers: { authorization: `Bearer ${token}` } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('In Progress');
+    expect(res.json().assignmentAcceptedAt).not.toBeNull();
+    await app.close();
+  });
+
   it('rejects accepting a case that is not currently Assigned', async () => {
     await reset();
     const app = buildTestApp(ds);

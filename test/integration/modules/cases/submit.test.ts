@@ -64,7 +64,11 @@ describe('POST /cases', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.status).toBe('Submitted');
-    expect(body.referenceNumber).toMatch(/^E\w{3}-\w{3}-\d{6}$/);
+    // Entity code prefix length varies (seedCaseMasterData derives it from a
+    // random UUID slice, widened in the final-review fix wave to shrink
+    // collision odds — see decisions/case-core/final-review-fixes.md), so
+    // this only pins the fixed caseType/sequence suffix, not the entity code width.
+    expect(body.referenceNumber).toMatch(/^E\w{3,}-\w{3}-\d{6}$/);
     expect(body.entityId).toBe(master.entityId);
     expect(body.businessUnitId).toBe(master.businessUnitId);
     expect(new Date(body.ackDueAt).getTime()).toBeGreaterThan(Date.now());
