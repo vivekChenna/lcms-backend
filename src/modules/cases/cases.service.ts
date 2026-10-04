@@ -12,6 +12,7 @@ import { generateReferenceNumber } from './reference-number';
 import { evaluateAutoRouting } from './auto-routing';
 import { assignCase } from './cases.workflow.service';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
+import { InformationRequest } from '../information-requests/entities/information-request.entity';
 
 export type CreateCaseInput = {
   title: string;
@@ -217,14 +218,14 @@ export async function getCaseById(dataSource: DataSource, actor: Actor, caseId: 
   if (actor.role === 'requester' && caseRow.departmentId !== actor.departmentId) {
     // AC-04: a requester also sees a case outside their department if an
     // information request has ever been assigned to them as responder on it.
-    // Referenced by raw table name, not a TypeORM entity import, so this
-    // module doesn't take a TypeScript dependency on information-requests —
-    // only the reverse dependency (information-requests imports case core)
-    // exists, keeping the module graph one-directional.
-    const [{ count }] = await dataSource.query(
-      `SELECT COUNT(*)::int AS count FROM information_requests WHERE "caseId" = $1 AND "responderId" = $2`,
-      [caseId, actor.id],
-    );
+    // Imports only the InformationRequest entity (a leaf module with no
+    // dependency back on cases), not its service — the real import-cycle
+    // risk is between the two service files (information-requests.service.ts
+    // imports cases.service.ts), not the entity, so this repository call is
+    // safe and keeps the module graph one-directional at the service level.
+    const count = await dataSource.getRepository(InformationRequest).count({
+      where: { caseId, responderId: actor.id },
+    });
     if (count === 0) {
       throw new NotFoundError('Case not found');
     }
