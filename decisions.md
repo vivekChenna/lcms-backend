@@ -21,3 +21,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 - [Task 3 — Placeholder case reference number generator](decisions/case-core/task-03-reference-number-generator.md)
 - [Task 2 — Case status state machine](decisions/case-core/task-02-state-machine.md)
 - [Task 1 (fix round) — Org-structure test tolerates rows added by other suites](decisions/case-core/task-01-fix-org-structure-test.md)
+
+## test-infrastructure
+
+- [Fixed a flaky timeout in the auth refresh concurrent-replay test](decisions/test-infrastructure/refresh-concurrent-replay-timeout.md)

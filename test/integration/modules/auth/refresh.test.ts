@@ -74,6 +74,15 @@ describe('POST /auth/refresh', () => {
     await app.close();
   });
 
+  // 20 serial rounds each pay bcryptjs's cost-12 hash (~320ms) + compare
+  // (~380ms) — pure-JS bcrypt, not the native binding, so this is slow by
+  // construction. That's ~14s of bcrypt alone against the suite's global
+  // 15s testTimeout, leaving ~1s of margin for this round's DB work before
+  // it intermittently times out under any extra load (a busy shared test
+  // container, CPU contention). Root-caused via direct measurement on this
+  // machine (2026-10-04); the replay-protection logic itself isn't at
+  // fault. Local override, not a global testTimeout change, since no other
+  // test in the suite does this much serial bcrypt work.
   it('rejects concurrent replay at the service level — exactly one of N simultaneous refreshes with the same token succeeds (code review finding, matches reviewer repro: N=5, 20 rounds)', async () => {
     for (let round = 0; round < 20; round += 1) {
       await seedAdmin(ds, { email: `admin-round-${round}@lcms.local`, password: 'Correct123!' });
@@ -86,5 +95,5 @@ describe('POST /auth/refresh', () => {
 
       expect(succeeded).toHaveLength(1);
     }
-  });
+  }, 30000);
 });

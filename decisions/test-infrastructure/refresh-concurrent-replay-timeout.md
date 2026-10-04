@@ -1,0 +1,9 @@
+# Fixed a flaky timeout in the auth refresh concurrent-replay test
+
+**Date:** 2026-10-04
+
+**What:** Added a per-test 30000ms timeout to `test/integration/modules/auth/refresh.test.ts`'s "rejects concurrent replay at the service level" test, overriding the suite's global 15000ms `testTimeout`. No change to the replay-protection logic under test.
+
+**Why:** This test runs 20 serial rounds, each doing one `bcryptjs` hash (`seedAdmin`) and one compare (`login`) at cost factor 12 before firing 5 concurrent refresh attempts. Measured directly on this machine: ~322ms per hash + ~376ms per compare = ~698ms/round × 20 rounds ≈ 14s of bcrypt cost alone, against a 15s global timeout — leaving roughly 1 second of margin for the round's actual DB work (the seed insert, the login lookup, and 5 concurrent refresh-token DB round-trips). Any extra load — a busy shared test Postgres container, CPU contention from another process — tips it over, which is exactly the intermittent symptom observed repeatedly during Phase 2 sub-project 1 (case-core) development. `bcryptjs` is a pure-JavaScript implementation (not the native `bcrypt` binding), which is why the margin is this tight at cost factor 12 in the first place; this test is the only one in the suite that does enough serial bcrypt work to hit the ceiling. Root-caused via direct measurement (see the in-code comment above the test) rather than guessed — the test's own logic is correct, confirmed by two consecutive clean passes on freshly recreated containers (18.19s and 17.88s) plus a full 181/181 suite pass afterward.
+
+Discovered while verifying the full suite before finishing the case-core sub-project (Phase 2, sub-project 1) — unrelated to case-core's own code (confirmed via `git diff` that nothing in `src/modules/auth` or this test file changed anywhere across that entire sub-project), but fixed here since it was blocking a clean green-suite confirmation.
