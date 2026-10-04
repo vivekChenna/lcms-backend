@@ -180,7 +180,10 @@ export async function listCases(
   const qb = dataSource.getRepository(Case).createQueryBuilder('c');
 
   if (actor.role === 'requester') {
-    qb.andWhere('c."departmentId" = :actorDepartmentId', { actorDepartmentId: actor.departmentId });
+    qb.andWhere(
+      '(c."departmentId" = :actorDepartmentId OR EXISTS (SELECT 1 FROM information_requests ir WHERE ir."caseId" = c.id AND ir."responderId" = :actorId))',
+      { actorDepartmentId: actor.departmentId, actorId: actor.id },
+    );
   }
 
   if (query.status) qb.andWhere('c."status" = :status', { status: query.status });
@@ -212,7 +215,19 @@ export async function getCaseById(dataSource: DataSource, actor: Actor, caseId: 
     throw new NotFoundError('Case not found');
   }
   if (actor.role === 'requester' && caseRow.departmentId !== actor.departmentId) {
-    throw new NotFoundError('Case not found');
+    // AC-04: a requester also sees a case outside their department if an
+    // information request has ever been assigned to them as responder on it.
+    // Referenced by raw table name, not a TypeORM entity import, so this
+    // module doesn't take a TypeScript dependency on information-requests —
+    // only the reverse dependency (information-requests imports case core)
+    // exists, keeping the module graph one-directional.
+    const [{ count }] = await dataSource.query(
+      `SELECT COUNT(*)::int AS count FROM information_requests WHERE "caseId" = $1 AND "responderId" = $2`,
+      [caseId, actor.id],
+    );
+    if (count === 0) {
+      throw new NotFoundError('Case not found');
+    }
   }
   return toCaseWithSla(caseRow);
 }
