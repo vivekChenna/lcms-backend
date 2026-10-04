@@ -1,4 +1,4 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { Case, CaseStatus } from './entities/case.entity';
 import { assertTransition } from './state-machine';
 import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../../shared/errors';
@@ -7,7 +7,7 @@ import { assertValidLegalRep } from '../master-data/routing-rules.service';
 import { ClosureOutcome } from '../master-data/entities/closure-outcome.entity';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
 
-export async function loadCaseOrThrow(dataSource: DataSource, caseId: string): Promise<Case> {
+export async function loadCaseOrThrow(dataSource: DataSource | EntityManager, caseId: string): Promise<Case> {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
   if (!caseRow) {
     throw new NotFoundError('Case not found');
@@ -91,8 +91,6 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
   return caseRow;
 }
 
-// VC-12's "no open information requests" guard is deferred to sub-project 2
-// (that table doesn't exist yet) — see spec §3/§8.
 export async function closeCase(
   dataSource: DataSource,
   actor: { id: string; role: string },
@@ -187,7 +185,13 @@ export async function setEscalation(
   return caseRow;
 }
 
-export async function markCaseWaitingOnInput(dataSource: DataSource, actorId: string, caseId: string): Promise<Case> {
+// Accepts an EntityManager so information-request mutations can run this
+// inside their own transaction; a plain DataSource still works.
+export async function markCaseWaitingOnInput(
+  dataSource: DataSource | EntityManager,
+  actorId: string,
+  caseId: string,
+): Promise<Case> {
   const caseRow = await loadCaseOrThrow(dataSource, caseId);
   if (caseRow.status === 'Waiting on Input') {
     return caseRow;
@@ -207,8 +211,22 @@ export async function markCaseWaitingOnInput(dataSource: DataSource, actorId: st
   return caseRow;
 }
 
-export async function markCaseInProgress(dataSource: DataSource, actorId: string, caseId: string): Promise<Case> {
+// Restricted to Waiting on Input -> In Progress (plus a no-op when already
+// In Progress). The state machine also allows Assigned -> In Progress, but
+// that edge belongs to acceptAssignment (sets assignmentAcceptedAt, audits
+// case.accepted) and must not be reachable through this helper.
+export async function markCaseInProgress(
+  dataSource: DataSource | EntityManager,
+  actorId: string,
+  caseId: string,
+): Promise<Case> {
   const caseRow = await loadCaseOrThrow(dataSource, caseId);
+  if (caseRow.status === 'In Progress') {
+    return caseRow;
+  }
+  if (caseRow.status !== 'Waiting on Input') {
+    throw new ConflictError(`Cannot resume case to 'In Progress' from '${caseRow.status}'; only a Waiting on Input case can be resumed`);
+  }
   assertTransition(caseRow.status as CaseStatus, 'In Progress');
 
   const before = { id: caseRow.id, status: caseRow.status };

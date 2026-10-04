@@ -5,6 +5,7 @@ import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { resetDatabase } from '../../helpers/reset-db';
 import { markCaseWaitingOnInput, markCaseInProgress } from '../../../../src/modules/cases/cases.workflow.service';
+import { ConflictError } from '../../../../src/shared/errors';
 
 describe('markCaseWaitingOnInput / markCaseInProgress', () => {
   let ds: DataSource;
@@ -64,6 +65,32 @@ describe('markCaseWaitingOnInput / markCaseInProgress', () => {
     expect(updated.status).toBe('In Progress');
     const auditRows = await ds.query(`SELECT action FROM audit_log WHERE action = 'case.resumed_in_progress'`);
     expect(auditRows).toHaveLength(1);
+  });
+
+  it('markCaseInProgress no-ops (no mutation, no audit) when the case is already In Progress', async () => {
+    await reset();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+
+    const updated = await markCaseInProgress(ds, repId, caseRow.id);
+
+    expect(updated.status).toBe('In Progress');
+    const auditRows = await ds.query(`SELECT action FROM audit_log WHERE action = 'case.resumed_in_progress'`);
+    expect(auditRows).toHaveLength(0);
+  });
+
+  it('markCaseInProgress rejects an Assigned case (must not bypass acceptAssignment)', async () => {
+    await reset();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Assigned', assignedLegalRepId: repId });
+
+    await expect(markCaseInProgress(ds, repId, caseRow.id)).rejects.toThrow(ConflictError);
+    const [caseAfter] = await ds.query(`SELECT status FROM cases WHERE id = $1`, [caseRow.id]);
+    expect(caseAfter.status).toBe('Assigned');
   });
 
   it('rejects moving a Submitted case to Waiting on Input (invalid transition)', async () => {

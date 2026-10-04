@@ -1,8 +1,8 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 
 export async function logAuditEvent(
-  dataSource: DataSource,
+  dataSource: DataSource | EntityManager,
   entry: {
     actorId: string;
     action: string;

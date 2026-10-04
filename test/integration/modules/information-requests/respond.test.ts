@@ -79,6 +79,100 @@ describe('POST /information-requests/:id/respond', () => {
     await app.close();
   });
 
+  it('does not silently accept a reassigned (Assigned) case: responding rejects with 409 and writes nothing', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const newRepId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    // Case was reassigned (Waiting on Input -> Assigned) while the request was still open.
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Assigned', assignedLegalRepId: newRepId, assignmentAcceptedAt: null });
+    const infoRequest = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId });
+    const token = app.signAccessToken({ id: responderId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/information-requests/${infoRequest.id}/respond`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { responseText: 'Answer after reassignment' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    const [caseAfter] = await ds.query(`SELECT status, "assignmentAcceptedAt" FROM cases WHERE id = $1`, [caseRow.id]);
+    expect(caseAfter.status).toBe('Assigned');
+    expect(caseAfter.assignmentAcceptedAt).toBeNull();
+    const [irAfter] = await ds.query(`SELECT status, "responseText" FROM information_requests WHERE id = $1`, [infoRequest.id]);
+    expect(irAfter).toEqual({ status: 'open', responseText: null });
+    const auditRows = await ds.query(`SELECT action FROM audit_log WHERE action IN ('case.resumed_in_progress', 'info_request.answered')`);
+    expect(auditRows).toHaveLength(0);
+    await app.close();
+  });
+
+  it('records referenceNumber, before status, and responseText in the info_request.answered audit entry', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Waiting on Input', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const infoRequest = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId });
+    const token = app.signAccessToken({ id: responderId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/information-requests/${infoRequest.id}/respond`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { responseText: 'Operations.' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [audit] = await ds.query(`SELECT "beforeValue", "afterValue" FROM audit_log WHERE action = 'info_request.answered'`);
+    expect(audit.beforeValue).toEqual({ id: infoRequest.id, status: 'open' });
+    expect(audit.afterValue).toMatchObject({
+      id: infoRequest.id,
+      caseId: caseRow.id,
+      referenceNumber: caseRow.referenceNumber,
+      responseText: 'Operations.',
+    });
+    await app.close();
+  });
+
+  it('two concurrent responses to the last two open requests leave the case In Progress', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Waiting on Input', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const first = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId });
+    const second = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId, subject: 'Second question' });
+    const token = app.signAccessToken({ id: responderId, role: 'requester', departmentId: null, entityId: null, businessUnitId: null });
+
+    const [resA, resB] = await Promise.all(
+      [first, second].map((ir) =>
+        app.inject({
+          method: 'POST',
+          url: `/information-requests/${ir.id}/respond`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { responseText: 'answer' },
+        }),
+      ),
+    );
+
+    expect(resA.statusCode).toBe(200);
+    expect(resB.statusCode).toBe(200);
+    const [caseAfter] = await ds.query(`SELECT status FROM cases WHERE id = $1`, [caseRow.id]);
+    expect(caseAfter.status).toBe('In Progress');
+    await app.close();
+  });
+
   it('rejects a response from anyone other than the assigned responder', async () => {
     await reset();
     const app = buildTestApp(ds);

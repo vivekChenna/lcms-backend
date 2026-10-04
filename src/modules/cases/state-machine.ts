@@ -3,9 +3,9 @@ import type { CaseStatus } from './entities/case.entity';
 
 // Reassignment (PR-23) can happen from Assigned, In Progress, or Waiting on
 // Input back to Assigned — a legal_manager can override at any point except
-// once the case is Closed. The Waiting on Input edges have no caller yet in
-// this sub-project (see spec §3/§8); they're defined here so sub-project 2
-// inherits a verified, complete table instead of re-deriving it.
+// once the case is Closed. The In Progress <-> Waiting on Input edges are
+// driven by the information-requests module (via markCaseWaitingOnInput /
+// markCaseInProgress in cases.workflow.service.ts).
 const TRANSITIONS: Record<CaseStatus, CaseStatus[]> = {
   Submitted: ['Assigned'],
   Assigned: ['In Progress', 'Submitted', 'Assigned'],

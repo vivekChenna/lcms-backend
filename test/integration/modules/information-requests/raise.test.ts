@@ -101,7 +101,7 @@ describe('POST /cases/:id/information-requests', () => {
     await app.close();
   });
 
-  it('rejects raising a request on a Submitted case (not yet accepted)', async () => {
+  it('rejects raising a request on an Assigned case (not yet accepted)', async () => {
     await reset();
     const app = buildTestApp(ds);
     await app.ready();

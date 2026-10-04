@@ -106,6 +106,61 @@ describe('POST /information-requests/:id/reopen', () => {
     await app.close();
   });
 
+  it('rejects reopening on a Closed case with 409 and writes nothing (no partial IR writes)', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Closed', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const answered = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId, status: 'answered', responseText: 'done' });
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/information-requests/${answered.id}/reopen`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { comment: 'reopening after closure' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    const rows = await ds.query(`SELECT id, status FROM information_requests WHERE "caseId" = $1`, [caseRow.id]);
+    expect(rows).toEqual([{ id: answered.id, status: 'answered' }]);
+    const [caseAfter] = await ds.query(`SELECT status FROM cases WHERE id = $1`, [caseRow.id]);
+    expect(caseAfter.status).toBe('Closed');
+    const auditRows = await ds.query(`SELECT action FROM audit_log WHERE action = 'info_request.reopened'`);
+    expect(auditRows).toHaveLength(0);
+    await app.close();
+  });
+
+  it('records referenceNumber in both before and after of the info_request.reopened audit entry', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const responderId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const answered = await seedInformationRequest(ds, { caseId: caseRow.id, raisedById: repId, responderId, status: 'answered', responseText: 'done' });
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/information-requests/${answered.id}/reopen`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { comment: 'reopening' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [audit] = await ds.query(`SELECT "beforeValue", "afterValue" FROM audit_log WHERE action = 'info_request.reopened'`);
+    expect(audit.beforeValue.referenceNumber).toBe(caseRow.referenceNumber);
+    expect(audit.afterValue.referenceNumber).toBe(caseRow.referenceNumber);
+    await app.close();
+  });
+
   it('rejects reopening a request that is still open', async () => {
     await reset();
     const app = buildTestApp(ds);
