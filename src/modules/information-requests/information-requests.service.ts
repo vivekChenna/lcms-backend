@@ -5,6 +5,7 @@ import { User } from '../users/entities/user.entity';
 import { ForbiddenError, NotFoundError, ValidationError, ConflictError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 import { markCaseWaitingOnInput, markCaseInProgress } from '../cases/cases.workflow.service';
+import { getCaseById, type Actor } from '../cases/cases.service';
 
 export type RaiseInformationRequestInput = {
   subject: string;
@@ -152,4 +153,15 @@ export async function reopenInformationRequest(
   });
 
   return reopened;
+}
+
+// Reuses case core's getCaseById purely as a visibility gate: it throws
+// NotFoundError (404) under the exact same rule case detail/list already
+// enforce (role-scoped, with the requester's department check extended in
+// Task 8 to also cover a requester who's a responder on this case). This
+// keeps one single source of truth for "can this actor see this case" rather
+// than re-deriving the rule here.
+export async function listInformationRequestsForCase(dataSource: DataSource, actor: Actor, caseId: string): Promise<InformationRequest[]> {
+  await getCaseById(dataSource, actor, caseId);
+  return dataSource.getRepository(InformationRequest).find({ where: { caseId }, order: { createdAt: 'DESC' } });
 }

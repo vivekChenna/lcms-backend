@@ -2,13 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import type { InformationRequest } from './entities/information-request.entity';
-import { raiseInformationRequest, respondToInformationRequest, reopenInformationRequest } from './information-requests.service';
+import { raiseInformationRequest, respondToInformationRequest, reopenInformationRequest, listInformationRequestsForCase } from './information-requests.service';
 import {
   raiseInformationRequestBodySchema,
   respondInformationRequestBodySchema,
   reopenInformationRequestBodySchema,
   informationRequestIdParamsSchema,
   informationRequestResponseSchema,
+  informationRequestListResponseSchema,
 } from './information-requests.schemas';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
 
@@ -28,6 +29,25 @@ export function serializeInformationRequest(row: InformationRequest) {
 
 export default async function informationRequestsRoutes(app: FastifyInstance): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
+
+  typedApp.get('/cases/:id/information-requests', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Information Requests'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      response: { 200: informationRequestListResponseSchema },
+    },
+  }, async (request) => {
+    const rows = await listInformationRequestsForCase(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.params.id);
+    return rows.map(serializeInformationRequest);
+  });
 
   typedApp.post('/cases/:id/information-requests', {
     preHandler: [app.authenticate, requireRole(['legal_rep'])],
