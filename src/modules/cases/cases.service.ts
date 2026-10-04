@@ -5,7 +5,7 @@ import { CaseType } from '../master-data/entities/case-type.entity';
 import { Department } from '../master-data/entities/department.entity';
 import { OrgEntity } from '../master-data/entities/org-entity.entity';
 import { BusinessUnit } from '../master-data/entities/business-unit.entity';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 import { computeDueDates, toCaseWithSla } from './sla';
 import { generateReferenceNumber } from './reference-number';
@@ -215,4 +215,81 @@ export async function getCaseById(dataSource: DataSource, actor: Actor, caseId: 
     throw new NotFoundError('Case not found');
   }
   return toCaseWithSla(caseRow);
+}
+
+export type UpdateCaseInput = {
+  title?: string;
+  description?: string;
+  categoryId?: string;
+  caseTypeId?: string;
+  departmentId?: string;
+};
+
+export async function updateCase(dataSource: DataSource, actor: Actor, caseId: string, input: UpdateCaseInput): Promise<Case> {
+  const repo = dataSource.getRepository(Case);
+  const caseRow = await repo.findOne({ where: { id: caseId } });
+  if (!caseRow) {
+    throw new NotFoundError('Case not found');
+  }
+  if (caseRow.requesterId !== actor.id && actor.role !== 'admin') {
+    throw new ForbiddenError('Only the submitter or an admin can edit this case');
+  }
+  if (caseRow.status !== 'Submitted') {
+    throw new ConflictError('Case can only be edited while Submitted');
+  }
+  if (input.categoryId && input.categoryId !== caseRow.categoryId) {
+    const category = await dataSource.getRepository(CaseCategory).findOne({ where: { id: input.categoryId } });
+    if (!category || !category.isActive) {
+      throw new ValidationError('Unknown or inactive categoryId');
+    }
+  }
+  const effectiveCategoryId = input.categoryId ?? caseRow.categoryId;
+  if (input.caseTypeId && input.caseTypeId !== caseRow.caseTypeId) {
+    const caseType = await dataSource.getRepository(CaseType).findOne({ where: { id: input.caseTypeId } });
+    if (!caseType || !caseType.isActive) {
+      throw new ValidationError('Unknown or inactive caseTypeId');
+    }
+    if (caseType.categoryId !== effectiveCategoryId) {
+      throw new ValidationError('caseTypeId does not belong to the submitted categoryId (VC-04)');
+    }
+  }
+  if (input.departmentId) {
+    const department = await dataSource.getRepository(Department).findOne({ where: { id: input.departmentId } });
+    if (!department || !department.isActive) {
+      throw new ValidationError('Unknown or inactive departmentId');
+    }
+  }
+
+  const before = {
+    id: caseRow.id,
+    title: caseRow.title,
+    description: caseRow.description,
+    categoryId: caseRow.categoryId,
+    caseTypeId: caseRow.caseTypeId,
+    departmentId: caseRow.departmentId,
+  };
+
+  if (input.title !== undefined) caseRow.title = input.title;
+  if (input.description !== undefined) caseRow.description = input.description;
+  if (input.categoryId !== undefined) caseRow.categoryId = input.categoryId;
+  if (input.caseTypeId !== undefined) caseRow.caseTypeId = input.caseTypeId;
+  if (input.departmentId !== undefined) caseRow.departmentId = input.departmentId;
+
+  await repo.save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId: actor.id,
+    caseId: caseRow.id,
+    action: 'case.updated',
+    beforeValue: before,
+    afterValue: {
+      id: caseRow.id,
+      title: caseRow.title,
+      description: caseRow.description,
+      categoryId: caseRow.categoryId,
+      caseTypeId: caseRow.caseTypeId,
+      departmentId: caseRow.departmentId,
+      referenceNumber: caseRow.referenceNumber,
+    },
+  });
+  return caseRow;
 }
