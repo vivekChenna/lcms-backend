@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
 
 async function createLegalRep(app: ReturnType<typeof buildTestApp>, token: string, email: string): Promise<string> {
@@ -45,12 +46,8 @@ describe('/routing-rules', () => {
   beforeEach(async () => {
     // No beforeEach in the brief's own test — added because test 1's routing
     // rule otherwise leaks into test 3's unfiltered GET /routing-rules,
-    // producing 3 rows instead of the expected 2. FK order matters:
-    // routing_rules references users, so it must be cleared first.
-    await ds.query('DELETE FROM routing_rules');
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    // producing 3 rows instead of the expected 2.
+    await resetDatabase(ds);
     adminId = await seedUserWithRole(ds, 'admin');
   });
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('/departments', () => {
@@ -16,7 +17,6 @@ describe('/departments', () => {
     ds = buildTestDataSource();
     await ds.initialize();
     await ds.runMigrations();
-    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   afterAll(async () => {
@@ -27,8 +27,9 @@ describe('/departments', () => {
   });
 
   beforeEach(async () => {
-    await ds.query('DELETE FROM audit_log');
+    await resetDatabase(ds);
     await ds.query('DELETE FROM departments');
+    adminId = await seedUserWithRole(ds, 'admin');
   });
 
   it('creates and lists a department', async () => {

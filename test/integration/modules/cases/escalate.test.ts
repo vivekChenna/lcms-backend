@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 
@@ -20,10 +21,7 @@ describe('PATCH /cases/:id/escalate', () => {
   });
 
   async function reset() {
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   }
 
   it('lets the assigned legal_rep escalate with a reason', async () => {

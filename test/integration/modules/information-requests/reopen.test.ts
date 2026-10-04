@@ -5,6 +5,7 @@ import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
+import { resetDatabase } from '../../helpers/reset-db';
 
 describe('POST /information-requests/:id/reopen', () => {
   let ds: DataSource;
@@ -21,11 +22,7 @@ describe('POST /information-requests/:id/reopen', () => {
   });
 
   async function reset() {
-    await ds.query('DELETE FROM information_requests');
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   }
 
   it('lets the raiser reopen an answered request, creating a new row and superseding the old one', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedAdmin } from '../../../../src/db/seed-admin';
 
 describe('POST /auth/login', () => {
@@ -19,9 +20,7 @@ describe('POST /auth/login', () => {
   });
 
   beforeEach(async () => {
-    await ds.query('DELETE FROM refresh_tokens');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   });
 
   it('returns access + refresh tokens for correct credentials', async () => {

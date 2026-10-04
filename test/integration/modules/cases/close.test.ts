@@ -5,6 +5,7 @@ import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
+import { resetDatabase } from '../../helpers/reset-db';
 
 describe('PATCH /cases/:id/close', () => {
   let ds: DataSource;
@@ -21,12 +22,8 @@ describe('PATCH /cases/:id/close', () => {
   });
 
   async function reset() {
-    await ds.query('DELETE FROM information_requests');
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM cases');
+    await resetDatabase(ds);
     await ds.query('DELETE FROM closure_outcomes');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
   }
 
   async function seedOutcome(): Promise<string> {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedAdmin } from '../../../../src/db/seed-admin';
 import { login, refreshSession } from '../../../../src/modules/auth/auth.service';
 
@@ -20,9 +21,7 @@ describe('POST /auth/refresh', () => {
   });
 
   beforeEach(async () => {
-    await ds.query('DELETE FROM refresh_tokens');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   });
 
   it('issues a new token pair for a valid refresh token', async () => {

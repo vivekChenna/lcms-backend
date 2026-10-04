@@ -4,6 +4,7 @@ import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
 
 describe('POST /information-requests/:id/respond', () => {
@@ -21,11 +22,7 @@ describe('POST /information-requests/:id/respond', () => {
   });
 
   async function reset() {
-    await ds.query('DELETE FROM information_requests');
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   }
 
   it('lets the responder answer, returning the case to In Progress when it was the only open request', async () => {

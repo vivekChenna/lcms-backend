@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
+import { resetDatabase } from '../../helpers/reset-db';
 import { logAuditEvent } from '../../../../src/modules/audit/audit.service';
 import { AuditLog } from '../../../../src/modules/audit/entities/audit-log.entity';
 
@@ -20,7 +21,7 @@ describe('logAuditEvent', () => {
   });
 
   beforeEach(async () => {
-    await ds.query('DELETE FROM audit_log');
+    await resetDatabase(ds);
   });
 
   it('writes an entry with before/after values', async () => {

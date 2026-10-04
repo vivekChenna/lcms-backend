@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
+import { resetDatabase } from '../../helpers/reset-db';
 import { markCaseWaitingOnInput, markCaseInProgress } from '../../../../src/modules/cases/cases.workflow.service';
 
 describe('markCaseWaitingOnInput / markCaseInProgress', () => {
@@ -20,11 +21,7 @@ describe('markCaseWaitingOnInput / markCaseInProgress', () => {
   });
 
   async function reset() {
-    await ds.query('DELETE FROM information_requests');
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   }
 
   it('moves an In Progress case to Waiting on Input and logs an audit entry', async () => {

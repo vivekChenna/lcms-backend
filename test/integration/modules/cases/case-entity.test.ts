@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { seedUserWithRole } from '../../helpers/seed-user';
+import { resetDatabase } from '../../helpers/reset-db';
 
 describe('Case entity + migration', () => {
   let ds: DataSource;
@@ -19,9 +20,7 @@ describe('Case entity + migration', () => {
   });
 
   it('round-trips a case row through the repository', async () => {
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
     await ds.query('DELETE FROM business_units');
     await ds.query('DELETE FROM case_types');
     await ds.query('DELETE FROM departments');

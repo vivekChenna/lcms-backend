@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
+import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
 
 describe('PATCH /users/:id/deactivate', () => {
@@ -25,9 +26,7 @@ describe('PATCH /users/:id/deactivate', () => {
   });
 
   beforeEach(async () => {
-    await ds.query('DELETE FROM audit_log');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
     adminId = await seedUserWithRole(ds, 'admin');
   });
 

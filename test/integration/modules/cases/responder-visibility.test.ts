@@ -5,6 +5,7 @@ import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
+import { resetDatabase } from '../../helpers/reset-db';
 
 describe('requester visibility extension — sees a case they are a responder on (AC-04)', () => {
   let ds: DataSource;
@@ -21,10 +22,7 @@ describe('requester visibility extension — sees a case they are a responder on
   });
 
   async function reset() {
-    await ds.query('DELETE FROM information_requests');
-    await ds.query('DELETE FROM cases');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
   }
 
   it('GET /cases/:id: a requester outside the case\'s department can see it once they are the responder on an information request', async () => {

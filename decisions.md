@@ -36,4 +36,5 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## test-infrastructure
 
+- [Added a shared resetDatabase() helper to fix cross-file test-isolation leaks](decisions/test-infrastructure/global-reset-helper.md)
 - [Fixed a flaky timeout in the auth refresh concurrent-replay test](decisions/test-infrastructure/refresh-concurrent-replay-timeout.md)

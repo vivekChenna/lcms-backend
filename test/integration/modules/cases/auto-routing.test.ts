@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { buildTestDataSource } from '../../helpers/test-data-source';
 import { seedUserWithRole } from '../../helpers/seed-user';
+import { resetDatabase } from '../../helpers/reset-db';
 import { evaluateAutoRouting } from '../../../../src/modules/cases/auto-routing';
 
 describe('evaluateAutoRouting', () => {
@@ -19,9 +20,7 @@ describe('evaluateAutoRouting', () => {
   });
 
   it('returns the highest-priority matching active rule, ignoring inactive ones', async () => {
-    await ds.query('DELETE FROM routing_rules');
-    await ds.query('DELETE FROM user_roles');
-    await ds.query('DELETE FROM users');
+    await resetDatabase(ds);
 
     const repA = await seedUserWithRole(ds, 'legal_rep');
     const repB = await seedUserWithRole(ds, 'legal_rep');
