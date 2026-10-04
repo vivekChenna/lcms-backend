@@ -88,3 +88,36 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
   });
   return caseRow;
 }
+
+export async function setEscalation(
+  dataSource: DataSource,
+  actor: { id: string; role: string },
+  caseId: string,
+  isEscalated: boolean,
+  reason?: string,
+): Promise<Case> {
+  const caseRow = await loadCaseOrThrow(dataSource, caseId);
+  const isOwningRep = caseRow.assignedLegalRepId === actor.id;
+  const isManagerOrAdmin = actor.role === 'legal_manager' || actor.role === 'admin';
+  if (!isOwningRep && !isManagerOrAdmin) {
+    throw new ForbiddenError('Only the assigned legal representative or a legal manager can change escalation state');
+  }
+
+  const before = { id: caseRow.id, isEscalated: caseRow.isEscalated, escalationReason: caseRow.escalationReason };
+  caseRow.isEscalated = isEscalated;
+  caseRow.escalationReason = isEscalated ? (reason ?? null) : null;
+  await dataSource.getRepository(Case).save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId: actor.id,
+    caseId: caseRow.id,
+    action: isEscalated ? 'case.escalated' : 'case.escalation_cleared',
+    beforeValue: before,
+    afterValue: {
+      id: caseRow.id,
+      isEscalated: caseRow.isEscalated,
+      escalationReason: caseRow.escalationReason,
+      referenceNumber: caseRow.referenceNumber,
+    },
+  });
+  return caseRow;
+}

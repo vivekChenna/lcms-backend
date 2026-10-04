@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import type { Case } from './entities/case.entity';
-import { acceptAssignment, assignCase, rejectAssignment } from './cases.workflow.service';
+import { acceptAssignment, assignCase, rejectAssignment, setEscalation } from './cases.workflow.service';
 import { getCaseById, listCases, submitCase } from './cases.service';
 import {
   assignCaseBodySchema,
@@ -12,6 +12,7 @@ import {
   caseListResponseSchema,
   caseResponseSchema,
   createCaseBodySchema,
+  escalateCaseBodySchema,
   rejectAssignmentBodySchema,
 } from './cases.schemas';
 
@@ -135,6 +136,26 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
     },
   }, async (request) => {
     const caseRow = await rejectAssignment(app.dataSource, request.user.id, request.params.id, request.body.reason);
+    return serializeCase(toCaseWithSla(caseRow));
+  });
+
+  typedApp.patch('/cases/:id/escalate', {
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager', 'admin'])],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      body: escalateCaseBodySchema,
+      response: { 200: caseResponseSchema },
+    },
+  }, async (request) => {
+    const caseRow = await setEscalation(
+      app.dataSource,
+      { id: request.user.id, role: request.user.role },
+      request.params.id,
+      request.body.isEscalated,
+      request.body.reason,
+    );
     return serializeCase(toCaseWithSla(caseRow));
   });
 }
