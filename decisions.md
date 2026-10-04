@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## case-core (Phase 2, sub-project 1)
 
+- [Task 5 — Auto-routing matcher](decisions/case-core/task-05-auto-routing-matcher.md)
 - [Task 4 — SLA due-date computation and live state derivation](decisions/case-core/task-04-sla-helpers.md)
 - [Task 3 — Placeholder case reference number generator](decisions/case-core/task-03-reference-number-generator.md)
 - [Task 2 — Case status state machine](decisions/case-core/task-02-state-machine.md)
