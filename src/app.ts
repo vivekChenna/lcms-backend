@@ -10,6 +10,7 @@ import auditRoutes from './modules/audit/audit.routes';
 import usersRoutes from './modules/users/users.routes';
 import masterDataRoutes from './modules/master-data/master-data.routes';
 import casesRoutes from './modules/cases/cases.routes';
+import informationRequestsRoutes from './modules/information-requests/information-requests.routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -31,6 +32,7 @@ export function buildApp(dataSource: DataSource): FastifyInstance {
   app.register(usersRoutes);
   app.register(masterDataRoutes);
   app.register(casesRoutes);
+  app.register(informationRequestsRoutes);
 
   // Registered via .register() (rather than app.get(...) directly) so it boots
   // through the same avvio sequence as the other route modules, after
