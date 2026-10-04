@@ -89,6 +89,48 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
   return caseRow;
 }
 
+// VC-12's "no open information requests" guard is deferred to sub-project 2
+// (that table doesn't exist yet) — see spec §3/§8.
+export async function closeCase(
+  dataSource: DataSource,
+  actor: { id: string; role: string },
+  caseId: string,
+  input: { closureSummary: string; closureOutcomeId: string },
+): Promise<Case> {
+  const caseRow = await loadCaseOrThrow(dataSource, caseId);
+  // Transition validity is checked before authorization (unlike setEscalation,
+  // which has no transition to check): a case still Submitted has no assigned
+  // rep yet, so checking ownership first would misreport VC-14's "wrong status"
+  // case as a 403 instead of the intended 409. See decisions/case-core/task-12-closure.md.
+  assertTransition(caseRow.status as CaseStatus, 'Closed');
+  const isOwningRep = caseRow.assignedLegalRepId === actor.id;
+  const isManagerOrAdmin = actor.role === 'legal_manager' || actor.role === 'admin';
+  if (!isOwningRep && !isManagerOrAdmin) {
+    throw new ForbiddenError('Only the assigned legal representative or a legal manager can close this case');
+  }
+
+  const before = { id: caseRow.id, status: caseRow.status };
+  caseRow.status = 'Closed';
+  caseRow.closureSummary = input.closureSummary;
+  caseRow.closureOutcomeId = input.closureOutcomeId;
+  caseRow.closedById = actor.id;
+  caseRow.closedAt = new Date();
+  await dataSource.getRepository(Case).save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId: actor.id,
+    caseId: caseRow.id,
+    action: 'case.closed',
+    beforeValue: before,
+    afterValue: {
+      id: caseRow.id,
+      status: caseRow.status,
+      closureOutcomeId: caseRow.closureOutcomeId,
+      referenceNumber: caseRow.referenceNumber,
+    },
+  });
+  return caseRow;
+}
+
 export async function setEscalation(
   dataSource: DataSource,
   actor: { id: string; role: string },

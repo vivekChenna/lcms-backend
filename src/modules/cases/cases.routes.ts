@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import type { Case } from './entities/case.entity';
-import { acceptAssignment, assignCase, rejectAssignment, setEscalation } from './cases.workflow.service';
+import { acceptAssignment, assignCase, closeCase, rejectAssignment, setEscalation } from './cases.workflow.service';
 import { getCaseById, listCases, submitCase } from './cases.service';
 import {
   assignCaseBodySchema,
@@ -11,6 +11,7 @@ import {
   caseListQuerySchema,
   caseListResponseSchema,
   caseResponseSchema,
+  closeCaseBodySchema,
   createCaseBodySchema,
   escalateCaseBodySchema,
   rejectAssignmentBodySchema,
@@ -155,6 +156,25 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
       request.params.id,
       request.body.isEscalated,
       request.body.reason,
+    );
+    return serializeCase(toCaseWithSla(caseRow));
+  });
+
+  typedApp.patch('/cases/:id/close', {
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager', 'admin'])],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      body: closeCaseBodySchema,
+      response: { 200: caseResponseSchema },
+    },
+  }, async (request) => {
+    const caseRow = await closeCase(
+      app.dataSource,
+      { id: request.user.id, role: request.user.role },
+      request.params.id,
+      { closureSummary: request.body.closureSummary, closureOutcomeId: request.body.closureOutcomeId },
     );
     return serializeCase(toCaseWithSla(caseRow));
   });
