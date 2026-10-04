@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## case-core (Phase 2, sub-project 1)
 
+- [Task 14 — Priority changes](decisions/case-core/task-14-priority-change.md)
 - [Task 13 — General edit](decisions/case-core/task-13-general-edit.md)
 - [Task 12 — Closure](decisions/case-core/task-12-closure.md)
 - [Task 11 — Escalation](decisions/case-core/task-11-escalation.md)

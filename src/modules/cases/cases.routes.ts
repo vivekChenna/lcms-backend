@@ -4,7 +4,7 @@ import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import type { Case } from './entities/case.entity';
 import { acceptAssignment, assignCase, closeCase, rejectAssignment, setEscalation } from './cases.workflow.service';
-import { getCaseById, listCases, submitCase, updateCase } from './cases.service';
+import { getCaseById, listCases, submitCase, updateCase, updatePriority } from './cases.service';
 import {
   assignCaseBodySchema,
   caseIdParamsSchema,
@@ -16,6 +16,7 @@ import {
   escalateCaseBodySchema,
   rejectAssignmentBodySchema,
   updateCaseBodySchema,
+  updatePriorityBodySchema,
 } from './cases.schemas';
 
 // toCaseWithSla (Task 4) deliberately keeps returning Date instances for
@@ -197,6 +198,20 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
       request.params.id,
       { closureSummary: request.body.closureSummary, closureOutcomeId: request.body.closureOutcomeId },
     );
+    return serializeCase(toCaseWithSla(caseRow));
+  });
+
+  typedApp.patch('/cases/:id/priority', {
+    preHandler: [app.authenticate, requireRole(['legal_manager', 'admin'])],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      body: updatePriorityBodySchema,
+      response: { 200: caseResponseSchema },
+    },
+  }, async (request) => {
+    const caseRow = await updatePriority(app.dataSource, request.user.id, request.params.id, request.body.priority);
     return serializeCase(toCaseWithSla(caseRow));
   });
 }

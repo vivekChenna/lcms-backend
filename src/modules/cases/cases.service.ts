@@ -293,3 +293,31 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
   });
   return caseRow;
 }
+
+export async function updatePriority(
+  dataSource: DataSource,
+  actorId: string,
+  caseId: string,
+  priority: Case['priority'],
+): Promise<Case> {
+  const repo = dataSource.getRepository(Case);
+  const caseRow = await repo.findOne({ where: { id: caseId } });
+  if (!caseRow) {
+    throw new NotFoundError('Case not found');
+  }
+  if (caseRow.status === 'Closed') {
+    throw new ConflictError('Cannot change priority on a Closed case');
+  }
+
+  const before = { id: caseRow.id, priority: caseRow.priority };
+  caseRow.priority = priority;
+  await repo.save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: caseRow.id,
+    action: 'case.priority_changed',
+    beforeValue: before,
+    afterValue: { id: caseRow.id, priority: caseRow.priority, referenceNumber: caseRow.referenceNumber },
+  });
+  return caseRow;
+}
