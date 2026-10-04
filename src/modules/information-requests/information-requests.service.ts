@@ -66,3 +66,45 @@ export async function raiseInformationRequest(
 
   return infoRequest;
 }
+
+async function loadInformationRequestOrThrow(dataSource: DataSource, requestId: string): Promise<InformationRequest> {
+  const row = await dataSource.getRepository(InformationRequest).findOne({ where: { id: requestId } });
+  if (!row) {
+    throw new NotFoundError('Information request not found');
+  }
+  return row;
+}
+
+export async function respondToInformationRequest(
+  dataSource: DataSource,
+  actorId: string,
+  requestId: string,
+  responseText: string,
+): Promise<InformationRequest> {
+  const infoRequest = await loadInformationRequestOrThrow(dataSource, requestId);
+  if (infoRequest.responderId !== actorId) {
+    throw new ForbiddenError('Only the assigned responder can answer this information request');
+  }
+  if (infoRequest.status !== 'open') {
+    throw new ConflictError('This information request is not open');
+  }
+
+  const repo = dataSource.getRepository(InformationRequest);
+  infoRequest.status = 'answered';
+  infoRequest.responseText = responseText;
+  await repo.save(infoRequest);
+
+  const otherOpenCount = await repo.count({ where: { caseId: infoRequest.caseId, status: 'open' } });
+  if (otherOpenCount === 0) {
+    await markCaseInProgress(dataSource, actorId, infoRequest.caseId);
+  }
+
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: infoRequest.caseId,
+    action: 'info_request.answered',
+    afterValue: { id: infoRequest.id, caseId: infoRequest.caseId },
+  });
+
+  return infoRequest;
+}
