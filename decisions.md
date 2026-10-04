@@ -4,6 +4,14 @@ One entry per meaningful change, newest first. Each entry: what changed, and why
 
 ---
 
+## 2026-10-04 — Placeholder case reference number generator
+
+**What:** Created `src/modules/cases/reference-number.ts` with `deriveCaseTypeCode()` and `generateReferenceNumber()` functions that produce reference numbers in the placeholder format `EntityCode-CaseTypeCode-SequenceID` (e.g., `AGC-NAJ-000123`). Derived case type code is a 3-letter uppercase code extracted from the case type name, stripping non-letters and padding to 3 characters; falls back to `GEN` if no letters are found. Sequence is zero-padded to 6 digits. Isolated here as one swappable function so the real scheme from Algihaz (VC-06/AU-01) can drop in without touching call sites.
+
+**Why:** Task 3 of case-core module — provides the reference number generation logic consumed by `cases.service.ts`'s `submitCase()` (Task 9). Defined as standalone, testable logic independent of database concerns, following TDD with 6 passing tests. Placeholder format is documented in comments and test description pending the real specification from Algihaz; when the spec arrives, this single file can be updated without rippling changes through the codebase.
+
+---
+
 ## 2026-10-04 — Case status state machine
 
 **What:** Created `src/modules/cases/state-machine.ts` with `canTransition()` and `assertTransition()` functions that encode legal case status transitions: Submitted→Assigned, Assigned→{In Progress, Submitted, Assigned}, In Progress→{Waiting on Input, Closed, Assigned}, Waiting on Input→{In Progress, Assigned}, and Closed (terminal, no outgoing transitions). Also allows reassignment from any open status back to Assigned for manager override.
