@@ -4,7 +4,8 @@ import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import type { Case } from './entities/case.entity';
 import { acceptAssignment, assignCase, rejectAssignment } from './cases.workflow.service';
-import { assignCaseBodySchema, caseIdParamsSchema, caseResponseSchema, rejectAssignmentBodySchema } from './cases.schemas';
+import { submitCase } from './cases.service';
+import { assignCaseBodySchema, caseIdParamsSchema, caseResponseSchema, createCaseBodySchema, rejectAssignmentBodySchema } from './cases.schemas';
 
 // toCaseWithSla (Task 4) deliberately keeps returning Date instances for
 // timestamp fields — its own unit test fixes that contract — while
@@ -30,6 +31,25 @@ export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours
 
 export default async function casesRoutes(app: FastifyInstance): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
+
+  typedApp.post('/cases', {
+    preHandler: [app.authenticate, requireRole(['requester', 'legal_rep', 'admin'])],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      body: createCaseBodySchema,
+      response: { 201: caseResponseSchema },
+    },
+  }, async (request, reply) => {
+    const caseRow = await submitCase(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.body);
+    reply.status(201).send(serializeCase(toCaseWithSla(caseRow)));
+  });
 
   typedApp.patch('/cases/:id/assign', {
     preHandler: [app.authenticate, requireRole(['legal_manager', 'admin'])],

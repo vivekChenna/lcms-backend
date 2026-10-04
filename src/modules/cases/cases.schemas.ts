@@ -12,7 +12,12 @@ export const createCaseBodySchema = z.object({
   categoryId: z.string().uuid(),
   caseTypeId: z.string().uuid(),
   departmentId: z.string().uuid(),
-  entityId: z.string().uuid(),
+  // Optional at the HTTP body level: a requester's entity/business unit are
+  // pre-filled server-side from their profile and non-editable (PR-02), so
+  // their request never includes entityId. Other submitter roles (legal_rep,
+  // admin) provide it directly in the body; submitCase (Task 9) enforces
+  // that it's present for those roles.
+  entityId: z.string().uuid().optional(),
   businessUnitId: z.string().uuid().optional(),
   priority: z.enum(CASE_PRIORITIES).default('P3'),
 });
