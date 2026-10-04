@@ -4,8 +4,16 @@ import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import type { Case } from './entities/case.entity';
 import { acceptAssignment, assignCase, rejectAssignment } from './cases.workflow.service';
-import { submitCase } from './cases.service';
-import { assignCaseBodySchema, caseIdParamsSchema, caseResponseSchema, createCaseBodySchema, rejectAssignmentBodySchema } from './cases.schemas';
+import { getCaseById, listCases, submitCase } from './cases.service';
+import {
+  assignCaseBodySchema,
+  caseIdParamsSchema,
+  caseListQuerySchema,
+  caseListResponseSchema,
+  caseResponseSchema,
+  createCaseBodySchema,
+  rejectAssignmentBodySchema,
+} from './cases.schemas';
 
 // toCaseWithSla (Task 4) deliberately keeps returning Date instances for
 // timestamp fields — its own unit test fixes that contract — while
@@ -31,6 +39,44 @@ export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours
 
 export default async function casesRoutes(app: FastifyInstance): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
+
+  typedApp.get('/cases', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      querystring: caseListQuerySchema,
+      response: { 200: caseListResponseSchema },
+    },
+  }, async (request) => {
+    const result = await listCases(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.query);
+    return { ...result, items: result.items.map(serializeCase) };
+  });
+
+  typedApp.get('/cases/:id', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      response: { 200: caseResponseSchema },
+    },
+  }, async (request) => {
+    const caseRow = await getCaseById(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.params.id);
+    return serializeCase(caseRow);
+  });
 
   typedApp.post('/cases', {
     preHandler: [app.authenticate, requireRole(['requester', 'legal_rep', 'admin'])],

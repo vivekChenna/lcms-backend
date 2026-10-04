@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## case-core (Phase 2, sub-project 1)
 
+- [Task 10 — Listing and detail (visibility matrix)](decisions/case-core/task-10-list-and-get.md)
 - [Task 9 — Case submission](decisions/case-core/task-09-submit-case.md)
 - [Task 8 — Accept and reject](decisions/case-core/task-08-accept-reject.md)
 - [Task 7 — Assignment (and reassignment)](decisions/case-core/task-07-assign-reassign.md)
