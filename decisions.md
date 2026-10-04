@@ -4,6 +4,14 @@ One entry per meaningful change, newest first. Each entry: what changed, and why
 
 ---
 
+## 2026-10-04 — SLA due-date computation and live state derivation
+
+**What:** Created `src/modules/cases/sla.ts` with `computeDueDates()` (calculates ack and resolution due dates from submission time and SLA hours), `deriveSlaState()` (derives 'on_track' | 'at_risk' | 'breached' | 'met' from case status and time), `deriveCaseAgeHours()` (elapsed hours since creation, frozen at closure), and `toCaseWithSla()` (attaches slaState and caseAgeHours to a case object). At-risk state uses a percentage-of-window rule (20% by constant `SLA_AT_RISK_WINDOW_FRACTION`) so different case type SLAs scale dynamically rather than a fixed hour threshold across very different durations.
+
+**Why:** Task 4 of case-core module — provides SLA-derived fields consumed by `seedCase` (Task 1), `submitCase` (Task 9), and returned by `cases.service.ts` and `cases.workflow.service.ts` (Tasks 7–12) in every case response. Defined as standalone, testable logic independent of database concerns, following TDD with 9 passing tests. At-risk window is percentage-based per decision in brainstorming session (2026-10-01) so each case type's urgency profile scales with its own SLA length instead of applying one fixed hour count across durations like 4 hours (ack) and 72 hours (resolution).
+
+---
+
 ## 2026-10-04 — Placeholder case reference number generator
 
 **What:** Created `src/modules/cases/reference-number.ts` with `deriveCaseTypeCode()` and `generateReferenceNumber()` functions that produce reference numbers in the placeholder format `EntityCode-CaseTypeCode-SequenceID` (e.g., `AGC-NAJ-000123`). Derived case type code is a 3-letter uppercase code extracted from the case type name, stripping non-letters and padding to 3 characters; falls back to `GEN` if no letters are found. Sequence is zero-padded to 6 digits. Isolated here as one swappable function so the real scheme from Algihaz (VC-06/AU-01) can drop in without touching call sites.
