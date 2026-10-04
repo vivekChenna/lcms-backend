@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## information-requests (Phase 2, sub-project 2)
 
+- [Task 3 — Case-transition helpers (markCaseWaitingOnInput / markCaseInProgress)](decisions/information-requests/task-03-case-transition-helpers.md)
 - [Task 2 — Information-request Zod schemas](decisions/information-requests/task-02-schemas.md)
 - [Task 1 — InformationRequest entity, migration, and test fixtures](decisions/information-requests/task-01-entity-migration-fixtures.md)
 

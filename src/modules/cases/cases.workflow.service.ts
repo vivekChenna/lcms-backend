@@ -174,3 +174,40 @@ export async function setEscalation(
   });
   return caseRow;
 }
+
+export async function markCaseWaitingOnInput(dataSource: DataSource, actorId: string, caseId: string): Promise<Case> {
+  const caseRow = await loadCaseOrThrow(dataSource, caseId);
+  if (caseRow.status === 'Waiting on Input') {
+    return caseRow;
+  }
+  assertTransition(caseRow.status as CaseStatus, 'Waiting on Input');
+
+  const before = { id: caseRow.id, status: caseRow.status };
+  caseRow.status = 'Waiting on Input';
+  await dataSource.getRepository(Case).save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: caseRow.id,
+    action: 'case.waiting_on_input',
+    beforeValue: before,
+    afterValue: { id: caseRow.id, status: caseRow.status, referenceNumber: caseRow.referenceNumber },
+  });
+  return caseRow;
+}
+
+export async function markCaseInProgress(dataSource: DataSource, actorId: string, caseId: string): Promise<Case> {
+  const caseRow = await loadCaseOrThrow(dataSource, caseId);
+  assertTransition(caseRow.status as CaseStatus, 'In Progress');
+
+  const before = { id: caseRow.id, status: caseRow.status };
+  caseRow.status = 'In Progress';
+  await dataSource.getRepository(Case).save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: caseRow.id,
+    action: 'case.resumed_in_progress',
+    beforeValue: before,
+    afterValue: { id: caseRow.id, status: caseRow.status, referenceNumber: caseRow.referenceNumber },
+  });
+  return caseRow;
+}
