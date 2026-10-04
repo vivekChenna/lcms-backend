@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## case-core (Phase 2, sub-project 1)
 
+- [Task 8 — Accept and reject](decisions/case-core/task-08-accept-reject.md)
 - [Task 7 — Assignment (and reassignment)](decisions/case-core/task-07-assign-reassign.md)
 - [Task 6 — Case schemas](decisions/case-core/task-06-case-schemas.md)
 - [Task 5 — Auto-routing matcher](decisions/case-core/task-05-auto-routing-matcher.md)
