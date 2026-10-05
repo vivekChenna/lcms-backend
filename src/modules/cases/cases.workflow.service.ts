@@ -98,7 +98,7 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
 // information-requests.service.ts) and closeCase could each read "no open
 // requests" / "case not yet Closed" before the other commits, letting both
 // proceed: a case closes while an information request opens on it.
-async function lockCaseOrThrow(manager: EntityManager, caseId: string): Promise<Case> {
+export async function lockCaseOrThrow(manager: EntityManager, caseId: string): Promise<Case> {
   const caseRow = await manager.getRepository(Case).findOne({ where: { id: caseId }, lock: { mode: 'pessimistic_write' } });
   if (!caseRow) {
     throw new NotFoundError('Case not found');
