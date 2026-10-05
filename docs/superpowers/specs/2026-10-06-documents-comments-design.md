@@ -121,12 +121,17 @@ id, the parent case is loaded first and the same gate applied.
    `legal_manager`/`admin` → allowed (AC-06). `requester` → allowed (extension).
 
 **Documents**
-- Upload to a case: `POST /cases/:id/documents`, multipart (`file`, `category`).
-- New version: `POST /documents/:id/versions`, multipart (`file`, optional `category`,
-  inherited if omitted). The target must be the current head of its chain and a
+- Upload to a case: `POST /cases/:id/documents?category=<category>`, multipart body
+  with a single `file` part. `category` is a **query parameter**, not a multipart
+  field: the upload streams, so a field placed after the file part could not be read
+  before the stream starts, and a query parameter lets it be validated up front.
+  A zero-byte file is rejected with 400.
+- New version: `POST /documents/:id/versions?category=<category>` (multipart `file`;
+  `category` optional, inherited from the superseded version if omitted). The target must be the current head of its chain and a
   case-level document (versioning information-request attachments is not required and
   is rejected with 409). Eligibility is the write-eligibility rule above.
-- Information-request attachment: `POST /information-requests/:id/attachments`. Only
+- Information-request attachment: `POST /information-requests/:id/attachments?category=<category>`
+  (multipart `file`). Only
   the request's `responderId` (AC-15), and only while the request is `open` (403/409
   respectively). Attachments are optional on a response (VC-10: "allow one or more").
   A reopened round is a new open request, so the responder can attach again.
