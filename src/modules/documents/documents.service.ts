@@ -9,7 +9,7 @@ import { getCaseById, type Actor } from '../cases/cases.service';
 import { loadCaseOrThrow, lockCaseOrThrow } from '../cases/cases.workflow.service';
 import { assertCaseWriteEligibility } from '../cases/case-access';
 import { logAuditEvent } from '../audit/audit.service';
-import { NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
+import { ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
 import { normalizeMimeType, validateUploadFile, type DocumentCategory, type UploadConfig } from './upload-config';
 
@@ -191,4 +191,49 @@ export async function getDocumentForDownload(dataSource: DataSource, actor: Acto
   const document = await findLiveDocument(dataSource, documentId);
   await getCaseById(dataSource, actor, document.caseId);
   return document;
+}
+
+export async function uploadNewVersion(
+  deps: DocumentsDeps,
+  actor: Actor,
+  documentId: string,
+  category: DocumentCategory | undefined,
+  file: IncomingFile,
+): Promise<CaseDocument> {
+  let target: CaseDocument;
+  try {
+    target = await findLiveDocument(deps.dataSource, documentId);
+  } catch (error) {
+    file.stream.resume();
+    throw error;
+  }
+  return performUpload(deps, actor, file, {
+    caseId: target.caseId,
+    informationRequestId: null,
+    category: category ?? target.category,
+    auditAction: 'document.version_uploaded',
+    authorize: async (manager, caseRow) => {
+      assertCaseWriteEligibility(actor, caseRow);
+      const repo = manager.getRepository(CaseDocument);
+      const current = await findLiveDocument(manager, documentId);
+      if (current.informationRequestId) {
+        throw new ConflictError('Information-request attachments cannot be versioned');
+      }
+      const head = await repo.findOne({
+        where: { rootDocumentId: current.rootDocumentId, deletedAt: IsNull() },
+        order: { version: 'DESC' },
+      });
+      if (!head || head.id !== current.id) {
+        throw new ConflictError('Only the latest version of a document can be superseded');
+      }
+      // Number past every version ever stored for this chain, deleted ones
+      // included, so a version number is never reused.
+      const { max } = (await repo
+        .createQueryBuilder('d')
+        .select('MAX(d."version")', 'max')
+        .where('d."rootDocumentId" = :root', { root: current.rootDocumentId })
+        .getRawOne<{ max: number | null }>()) ?? { max: current.version };
+      return { version: Number(max ?? current.version) + 1, rootDocumentId: current.rootDocumentId, previousVersionId: current.id };
+    },
+  });
 }

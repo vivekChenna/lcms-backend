@@ -32,3 +32,5 @@ export const downloadQuerySchema = z.object({
 });
 
 export const documentListResponseSchema = z.array(documentResponseSchema);
+
+export const newVersionQuerySchema = z.object({ category: documentCategorySchema.optional() });

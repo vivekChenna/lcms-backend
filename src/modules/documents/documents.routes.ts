@@ -8,6 +8,7 @@ import {
   listDocumentVersions,
   documentStorageKey,
   uploadCaseDocument,
+  uploadNewVersion,
   type DocumentsDeps,
   type IncomingFile,
 } from './documents.service';
@@ -17,6 +18,7 @@ import {
   documentResponseSchema,
   downloadQuerySchema,
   listDocumentsQuerySchema,
+  newVersionQuerySchema,
   uploadQuerySchema,
 } from './documents.schemas';
 import { contentDispositionHeader } from './content-disposition';
@@ -121,6 +123,22 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
   }, async (request, reply) => {
     const file = await readUpload(request);
     const document = await uploadCaseDocument(deps, request.user, request.params.id, request.query.category, file);
+    reply.status(201).send(serializeDocument(document));
+  });
+
+  typedApp.post('/documents/:id/versions', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      consumes: ['multipart/form-data'],
+      params: documentIdParamsSchema,
+      querystring: newVersionQuerySchema,
+      response: { 201: documentResponseSchema },
+    },
+  }, async (request, reply) => {
+    const file = await readUpload(request);
+    const document = await uploadNewVersion(deps, request.user, request.params.id, request.query.category, file);
     reply.status(201).send(serializeDocument(document));
   });
 }
