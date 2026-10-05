@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## documents-comments (Phase 2, sub-project 3)
 
+- [Task 6 — Case document upload (streamed, validated, transactional)](decisions/documents-comments/task-06-case-document-upload.md)
 - [Task 5 — Comment edit and delete (author-only, soft delete)](decisions/documents-comments/task-05-comment-edit-delete.md)
 - [Task 4 — Case write-eligibility helper, comment create and list](decisions/documents-comments/task-04-comment-create-list.md)
 - [Task 3 — Entities, migration, reset helper, fixtures](decisions/documents-comments/task-03-entities-migration-fixtures.md)
