@@ -7,7 +7,7 @@ import { CaseDocument } from './entities/case-document.entity';
 import { Case } from '../cases/entities/case.entity';
 import { getCaseById, type Actor } from '../cases/cases.service';
 import { loadCaseOrThrow, lockCaseOrThrow } from '../cases/cases.workflow.service';
-import { assertCaseWriteEligibility } from '../cases/case-access';
+import { assertCaseNotClosed, assertCaseWriteEligibility } from '../cases/case-access';
 import { logAuditEvent } from '../audit/audit.service';
 import { ConflictError, ForbiddenError, NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
@@ -277,5 +277,41 @@ export async function uploadInformationRequestAttachment(
       }
       return { version: 1, rootDocumentId: null, previousVersionId: null };
     },
+  });
+}
+
+export async function deleteDocument(dataSource: DataSource, actor: Actor, documentId: string): Promise<void> {
+  const preliminary = await findLiveDocument(dataSource, documentId);
+  await getCaseById(dataSource, actor, preliminary.caseId);
+  await dataSource.transaction(async (manager) => {
+    const caseRow = await lockCaseOrThrow(manager, preliminary.caseId);
+    const document = await findLiveDocument(manager, documentId);
+    assertCaseNotClosed(caseRow);
+    if (document.uploaderId !== actor.id) {
+      throw new ForbiddenError('Only the uploader can delete this document');
+    }
+    if (document.informationRequestId) {
+      const informationRequest = await manager.getRepository(InformationRequest).findOne({ where: { id: document.informationRequestId } });
+      if (informationRequest && informationRequest.status !== 'open') {
+        throw new ConflictError('Attachments cannot be deleted once the information request has been answered');
+      }
+    }
+
+    document.deletedAt = new Date();
+    await manager.getRepository(CaseDocument).save(document);
+    await logAuditEvent(manager, {
+      actorId: actor.id,
+      caseId: document.caseId,
+      action: 'document.deleted',
+      beforeValue: { documentId: document.id, filename: document.filename, version: document.version },
+      afterValue: {
+        documentId: document.id,
+        caseId: document.caseId,
+        referenceNumber: caseRow.referenceNumber,
+        filename: document.filename,
+        version: document.version,
+        deletedAt: document.deletedAt,
+      },
+    });
   });
 }

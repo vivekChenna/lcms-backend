@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { CaseDocument } from './entities/case-document.entity';
 import {
+  deleteDocument,
   getDocumentForDownload,
   listCaseDocuments,
   listDocumentVersions,
@@ -158,5 +159,17 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
     const file = await readUpload(request);
     const document = await uploadInformationRequestAttachment(deps, request.user, request.params.id, request.query.category, file);
     reply.status(201).send(serializeDocument(document));
+  });
+
+  typedApp.delete('/documents/:id', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      params: documentIdParamsSchema,
+    },
+  }, async (request, reply) => {
+    await deleteDocument(app.dataSource, request.user, request.params.id);
+    reply.status(204).send();
   });
 }
