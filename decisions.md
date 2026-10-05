@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## documents-comments (Phase 2, sub-project 3)
 
+- [Task 2 — Storage layer, app wiring, test helpers](decisions/documents-comments/task-02-storage-layer.md)
 - [Task 1 — Upload environment config, file validation rules, and 413 error](decisions/documents-comments/task-01-config-and-upload-rules.md)
 
 ## information-requests (Phase 2, sub-project 2)

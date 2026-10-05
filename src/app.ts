@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import type { DataSource } from 'typeorm';
+import multipart from '@fastify/multipart';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { registerErrorHandler } from './plugins/error-handler';
 import swaggerPlugin from './plugins/swagger';
@@ -11,6 +12,8 @@ import usersRoutes from './modules/users/users.routes';
 import masterDataRoutes from './modules/master-data/master-data.routes';
 import casesRoutes from './modules/cases/cases.routes';
 import informationRequestsRoutes from './modules/information-requests/information-requests.routes';
+import type { ObjectStorage } from './shared/storage/object-storage';
+import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from './modules/documents/upload-config';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -18,12 +21,22 @@ declare module 'fastify' {
   }
 }
 
-export function buildApp(dataSource: DataSource): FastifyInstance {
+export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig };
+
+export function buildApp(dataSource: DataSource, options: AppOptions): FastifyInstance {
+  const uploadConfig = options.uploadConfig ?? DEFAULT_UPLOAD_CONFIG;
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
   app.decorate('dataSource', dataSource);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);
+  // fileSize is one byte above the configured max so the service's own
+  // SizeLimiter (which counts bytes and returns the project's 413 error) trips
+  // first; this is only the backstop that stops a runaway upload.
+  app.register(multipart, {
+    limits: { fileSize: uploadConfig.maxBytes + 1, files: 1 },
+    defCharset: 'utf8',
+  });
   app.register(swaggerPlugin);
   app.register(rateLimitPlugin);
   app.register(authPlugin);
