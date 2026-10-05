@@ -22,6 +22,8 @@ import type { DataSource } from 'typeorm';
 // Every file now calls this one helper instead of hand-rolling its subset.
 const RESET_TABLES_IN_ORDER = [
   'audit_log',
+  'comments',
+  'documents',
   'information_requests',
   'refresh_tokens',
   'user_roles',
