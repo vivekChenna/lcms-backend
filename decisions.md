@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## documents-comments (Phase 2, sub-project 3)
+
+- [Task 1 — Upload environment config, file validation rules, and 413 error](decisions/documents-comments/task-01-config-and-upload-rules.md)
+
 ## information-requests (Phase 2, sub-project 2)
 
 - [Closed the parked finding: closeCase now locks the case row](decisions/information-requests/closecase-row-lock.md)

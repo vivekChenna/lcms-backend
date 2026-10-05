@@ -33,3 +33,8 @@ export class UnauthorizedError extends AppError {
   readonly statusCode = 401;
   readonly code = 'UNAUTHORIZED';
 }
+
+export class PayloadTooLargeError extends AppError {
+  readonly statusCode = 413;
+  readonly code = 'PAYLOAD_TOO_LARGE';
+}
