@@ -9,7 +9,8 @@ import { getCaseById, type Actor } from '../cases/cases.service';
 import { loadCaseOrThrow, lockCaseOrThrow } from '../cases/cases.workflow.service';
 import { assertCaseWriteEligibility } from '../cases/case-access';
 import { logAuditEvent } from '../audit/audit.service';
-import { ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
+import { ConflictError, ForbiddenError, NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
+import { InformationRequest } from '../information-requests/entities/information-request.entity';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
 import { normalizeMimeType, validateUploadFile, type DocumentCategory, type UploadConfig } from './upload-config';
 
@@ -234,6 +235,47 @@ export async function uploadNewVersion(
         .where('d."rootDocumentId" = :root', { root: current.rootDocumentId })
         .getRawOne<{ max: number | null }>()) ?? { max: current.version };
       return { version: Number(max ?? current.version) + 1, rootDocumentId: current.rootDocumentId, previousVersionId: current.id };
+    },
+  });
+}
+
+export async function uploadInformationRequestAttachment(
+  deps: DocumentsDeps,
+  actor: Actor,
+  requestId: string,
+  category: DocumentCategory,
+  file: IncomingFile,
+): Promise<CaseDocument> {
+  let informationRequest: InformationRequest | null;
+  try {
+    informationRequest = await deps.dataSource.getRepository(InformationRequest).findOne({ where: { id: requestId } });
+    if (!informationRequest) {
+      throw new NotFoundError('Information request not found');
+    }
+  } catch (error) {
+    file.stream.resume();
+    throw error;
+  }
+  // Only the responder may attach (AC-15), whatever their role, and only while
+  // the request is open — so the general write-eligibility rule (which bars
+  // viewers) deliberately does not apply here.
+  return performUpload(deps, actor, file, {
+    caseId: informationRequest.caseId,
+    informationRequestId: informationRequest.id,
+    category,
+    auditAction: 'document.uploaded',
+    authorize: async (manager) => {
+      const current = await manager.getRepository(InformationRequest).findOne({ where: { id: requestId } });
+      if (!current) {
+        throw new NotFoundError('Information request not found');
+      }
+      if (current.responderId !== actor.id) {
+        throw new ForbiddenError('Only the assigned responder can attach files to this information request');
+      }
+      if (current.status !== 'open') {
+        throw new ConflictError('Attachments can only be added while the information request is open');
+      }
+      return { version: 1, rootDocumentId: null, previousVersionId: null };
     },
   });
 }

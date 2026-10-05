@@ -8,6 +8,7 @@ import {
   listDocumentVersions,
   documentStorageKey,
   uploadCaseDocument,
+  uploadInformationRequestAttachment,
   uploadNewVersion,
   type DocumentsDeps,
   type IncomingFile,
@@ -23,6 +24,7 @@ import {
 } from './documents.schemas';
 import { contentDispositionHeader } from './content-disposition';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
+import { informationRequestIdParamsSchema } from '../information-requests/information-requests.schemas';
 import { ValidationError } from '../../shared/errors';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
 import type { UploadConfig } from './upload-config';
@@ -139,6 +141,22 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
   }, async (request, reply) => {
     const file = await readUpload(request);
     const document = await uploadNewVersion(deps, request.user, request.params.id, request.query.category, file);
+    reply.status(201).send(serializeDocument(document));
+  });
+
+  typedApp.post('/information-requests/:id/attachments', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      consumes: ['multipart/form-data'],
+      params: informationRequestIdParamsSchema,
+      querystring: uploadQuerySchema,
+      response: { 201: documentResponseSchema },
+    },
+  }, async (request, reply) => {
+    const file = await readUpload(request);
+    const document = await uploadInformationRequestAttachment(deps, request.user, request.params.id, request.query.category, file);
     reply.status(201).send(serializeDocument(document));
   });
 }
