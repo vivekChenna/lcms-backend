@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## documents-comments (Phase 2, sub-project 3)
 
+- [Final review fixes — multipart limits, .env.example, deterministic race test, hardening](decisions/documents-comments/final-review-fixes.md)
 - [Task 10 — Document soft delete](decisions/documents-comments/task-10-document-delete.md)
 - [Task 9 — Information-request attachments](decisions/documents-comments/task-09-information-request-attachments.md)
 - [Task 8 — Upload a new version](decisions/documents-comments/task-08-new-version.md)

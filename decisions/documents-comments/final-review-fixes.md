@@ -1,0 +1,7 @@
+# Final whole-branch review fixes
+
+**Date:** 2026-10-06
+
+**What:** (1) `@fastify/multipart` is now registered with `fields: 0, parts: 1, fieldSize: 1024, headerPairs: 20` alongside `fileSize` and `files: 1`, so a body may contain only the file part; any extra part is rejected with 413 and a field's data is skipped, not buffered. (2) `.env.example` lists the S3_* and UPLOAD_* variables, matching the dev MinIO service. (3) The Task 6 race test now polls `pg_stat_activity` for a lock wait (25 ms steps, 5 s cap) instead of sleeping 400 ms. (4) `parseUploadConfig` and `validateUploadFile` use `Object.hasOwn` so `constructor` is not an extension; `readUpload` drains a wrongly named file part before the 400; the download response sends `Cache-Control: private, no-store`. New tests cover the large-field 413, the wrong field name, `constructor`, and the cache header.
+
+**Why:** `request.file()` buffers every non-file field before the file part, and the defaults allowed about 1 GB per authenticated request before authorization ran. The server refuses to boot without the S3 variables, so they belong in the template. The fixed sleep could let the test pass through the unlocked pre-check without exercising the under-lock re-check; I confirmed the new test fails (201 instead of 409) when the in-transaction `authorize` is neutralised, then restored the code. Downloads of confidential documents should not be cached by shared caches or browsers.

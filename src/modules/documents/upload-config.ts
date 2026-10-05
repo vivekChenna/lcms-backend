@@ -38,7 +38,7 @@ export function parseUploadConfig(maxBytes: number, allowedCsv: string): UploadC
   if (allowedExtensions.length === 0) {
     throw new Error('UPLOAD_ALLOWED_EXTENSIONS must list at least one extension');
   }
-  const unknown = allowedExtensions.filter((extension) => !(extension in EXTENSION_MIME_TYPES));
+  const unknown = allowedExtensions.filter((extension) => !Object.hasOwn(EXTENSION_MIME_TYPES, extension));
   if (unknown.length > 0) {
     throw new Error(`UPLOAD_ALLOWED_EXTENSIONS contains unsupported extension(s): ${unknown.join(', ')}`);
   }
@@ -70,7 +70,7 @@ export function validateUploadFile(
     throw new ValidationError('A filename is required');
   }
   const extension = path.extname(filename).slice(1).toLowerCase();
-  if (!extension || !config.allowedExtensions.includes(extension)) {
+  if (!extension || !Object.hasOwn(EXTENSION_MIME_TYPES, extension) || !config.allowedExtensions.includes(extension)) {
     throw new ValidationError(`File type '${extension ? `.${extension}` : 'without an extension'}' is not allowed`);
   }
   const expected = EXTENSION_MIME_TYPES[extension];

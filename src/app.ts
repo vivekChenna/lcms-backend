@@ -35,8 +35,12 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   // fileSize is one byte above the configured max so the service's own
   // SizeLimiter (which counts bytes and returns the project's 413 error) trips
   // first; this is only the backstop that stops a runaway upload.
+  // request.file() buffers every non-file field before the file part, so the
+  // body may contain exactly one part: the file. parts: 1 rejects any extra part
+  // (fields: 0 skips any field's data rather than buffering it; fieldSize and
+  // headerPairs are small backstops). A request with extra parts gets 413.
   app.register(multipart, {
-    limits: { fileSize: uploadConfig.maxBytes + 1, files: 1 },
+    limits: { fileSize: uploadConfig.maxBytes + 1, files: 1, fields: 0, parts: 1, fieldSize: 1024, headerPairs: 20 },
     defCharset: 'utf8',
   });
   app.register(swaggerPlugin);

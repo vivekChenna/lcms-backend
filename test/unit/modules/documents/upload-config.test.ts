@@ -24,6 +24,10 @@ describe('upload config', () => {
     expect(() => parseUploadConfig(100, 'pdf,exe')).toThrow(/unsupported extension.*exe/);
   });
 
+  it('refuses an inherited object key such as constructor as an extension', () => {
+    expect(() => parseUploadConfig(100, 'constructor')).toThrow(/unsupported extension.*constructor/);
+  });
+
   it('refuses an empty allowlist', () => {
     expect(() => parseUploadConfig(100, ' , ')).toThrow(/at least one extension/);
   });

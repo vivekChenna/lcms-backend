@@ -271,13 +271,75 @@ describe('POST /cases/:id/documents', () => {
     await queryRunner.query(`SELECT id FROM cases WHERE id = $1 FOR UPDATE`, [caseRow.id]);
 
     const pending = upload(app, caseRow.id, repId, 'legal_rep');
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // Wait until the upload request is actually blocked on the case row lock.
+    const deadline = Date.now() + 5000;
+    let blocked = false;
+    while (!blocked && Date.now() < deadline) {
+      const rows = await ds.query(
+        `SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' LIMIT 1`,
+      );
+      blocked = rows.length > 0;
+      if (!blocked) await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (!blocked) {
+      await queryRunner.rollbackTransaction();
+      await queryRunner.release();
+      await pending.catch(() => undefined);
+      throw new Error('upload request never reached the case row lock within 5s');
+    }
     await queryRunner.query(`UPDATE cases SET status = 'Closed' WHERE id = $1`, [caseRow.id]);
     await queryRunner.commitTransaction();
     await queryRunner.release();
     const res = await pending;
 
     expect(res.statusCode).toBe(409);
+    expect(storage.objects.size).toBe(0);
+    const [{ count }] = await ds.query(`SELECT COUNT(*)::int AS count FROM documents`);
+    expect(count).toBe(0);
+    await app.close();
+  });
+
+  it('rejects a multipart body with a large non-file field before the file with 413, storing nothing', async () => {
+    const { app, storage } = setup();
+    await app.ready();
+    const { repId, caseRow } = await seedCaseWithParties(ds);
+    const boundary = '----lcmstestbigfield';
+    const payload = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="note"\r\n\r\n`, 'utf8'),
+      Buffer.alloc(64 * 1024, 'x'),
+      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="contract.pdf"\r\nContent-Type: application/pdf\r\n\r\n`, 'utf8'),
+      PDF,
+      Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
+    ]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/cases/${caseRow.id}/documents?category=Evidence`,
+      headers: { ...authHeader(app, repId, 'legal_rep'), 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload,
+    });
+
+    expect(res.statusCode).toBe(413);
+    expect(storage.objects.size).toBe(0);
+    const [{ count }] = await ds.query(`SELECT COUNT(*)::int AS count FROM documents`);
+    expect(count).toBe(0);
+    await app.close();
+  });
+
+  it('rejects a file part sent under the wrong field name with 400, storing nothing', async () => {
+    const { app, storage } = setup();
+    await app.ready();
+    const { repId, caseRow } = await seedCaseWithParties(ds);
+    const mp = buildMultipartBody([{ name: 'attachment', filename: 'contract.pdf', contentType: 'application/pdf', content: PDF }]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/cases/${caseRow.id}/documents?category=Evidence`,
+      headers: { ...authHeader(app, repId, 'legal_rep'), ...mp.headers },
+      payload: mp.payload,
+    });
+
+    expect(res.statusCode).toBe(400);
     expect(storage.objects.size).toBe(0);
     const [{ count }] = await ds.query(`SELECT COUNT(*)::int AS count FROM documents`);
     expect(count).toBe(0);

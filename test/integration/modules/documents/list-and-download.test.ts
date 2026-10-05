@@ -147,6 +147,7 @@ describe('document list, versions and download', () => {
     expect(attachment.headers['content-disposition']).toMatch(/^attachment; filename="/);
     expect(attachment.headers['content-disposition']).toContain(`filename*=UTF-8''%D8%B9%D9%82%D8%AF%202026.pdf`);
     expect(attachment.headers['x-content-type-options']).toBe('nosniff');
+    expect(attachment.headers['cache-control']).toBe('private, no-store');
     expect(inline.headers['content-disposition']).toMatch(/^inline; /);
     await app.close();
   });

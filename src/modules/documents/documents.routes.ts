@@ -55,6 +55,7 @@ async function readUpload(request: FastifyRequest): Promise<IncomingFile> {
   }
   const part = await request.file();
   if (!part || part.fieldname !== 'file') {
+    part?.file.resume();
     throw new ValidationError('A file is required in the multipart field "file"');
   }
   return { filename: part.filename, mimeType: part.mimetype, stream: part.file };
@@ -109,7 +110,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
       .header('Content-Type', document.mimeType)
       .header('Content-Disposition', contentDispositionHeader(request.query.disposition, document.filename))
       .header('Content-Length', String(document.sizeBytes))
-      .header('X-Content-Type-Options', 'nosniff');
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', 'private, no-store');
     return reply.send(stream);
   });
 
