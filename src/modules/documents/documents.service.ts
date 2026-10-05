@@ -2,14 +2,14 @@
 import crypto from 'node:crypto';
 import { pipeline, Transform } from 'node:stream';
 import type { Readable } from 'node:stream';
-import type { DataSource, EntityManager } from 'typeorm';
+import { IsNull, type DataSource, type EntityManager } from 'typeorm';
 import { CaseDocument } from './entities/case-document.entity';
 import { Case } from '../cases/entities/case.entity';
 import { getCaseById, type Actor } from '../cases/cases.service';
 import { loadCaseOrThrow, lockCaseOrThrow } from '../cases/cases.workflow.service';
 import { assertCaseWriteEligibility } from '../cases/case-access';
 import { logAuditEvent } from '../audit/audit.service';
-import { PayloadTooLargeError, ValidationError } from '../../shared/errors';
+import { NotFoundError, PayloadTooLargeError, ValidationError } from '../../shared/errors';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
 import { normalizeMimeType, validateUploadFile, type DocumentCategory, type UploadConfig } from './upload-config';
 
@@ -139,4 +139,56 @@ export async function uploadCaseDocument(
       return { version: 1, rootDocumentId: null, previousVersionId: null };
     },
   });
+}
+
+export async function findLiveDocument(source: DataSource | EntityManager, documentId: string): Promise<CaseDocument> {
+  const document = await source.getRepository(CaseDocument).findOne({ where: { id: documentId, deletedAt: IsNull() } });
+  if (!document) {
+    throw new NotFoundError('Document not found');
+  }
+  return document;
+}
+
+export async function listCaseDocuments(
+  dataSource: DataSource,
+  actor: Actor,
+  caseId: string,
+  options: { informationRequestId?: string; includeHistory: boolean },
+): Promise<CaseDocument[]> {
+  await getCaseById(dataSource, actor, caseId);
+  const rows = await dataSource.getRepository(CaseDocument).find({
+    where: {
+      caseId,
+      deletedAt: IsNull(),
+      ...(options.informationRequestId ? { informationRequestId: options.informationRequestId } : {}),
+    },
+    order: { createdAt: 'DESC' },
+  });
+  if (options.includeHistory) {
+    return rows;
+  }
+  // Head of each chain = highest version among the non-deleted rows.
+  const heads = new Map<string, CaseDocument>();
+  for (const row of rows) {
+    const current = heads.get(row.rootDocumentId);
+    if (!current || row.version > current.version) {
+      heads.set(row.rootDocumentId, row);
+    }
+  }
+  return rows.filter((row) => heads.get(row.rootDocumentId)?.id === row.id);
+}
+
+export async function listDocumentVersions(dataSource: DataSource, actor: Actor, documentId: string): Promise<CaseDocument[]> {
+  const document = await findLiveDocument(dataSource, documentId);
+  await getCaseById(dataSource, actor, document.caseId);
+  return dataSource.getRepository(CaseDocument).find({
+    where: { rootDocumentId: document.rootDocumentId, deletedAt: IsNull() },
+    order: { version: 'ASC' },
+  });
+}
+
+export async function getDocumentForDownload(dataSource: DataSource, actor: Actor, documentId: string): Promise<CaseDocument> {
+  const document = await findLiveDocument(dataSource, documentId);
+  await getCaseById(dataSource, actor, document.caseId);
+  return document;
 }

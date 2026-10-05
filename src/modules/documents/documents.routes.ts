@@ -2,8 +2,24 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { CaseDocument } from './entities/case-document.entity';
-import { uploadCaseDocument, type DocumentsDeps, type IncomingFile } from './documents.service';
-import { documentResponseSchema, uploadQuerySchema } from './documents.schemas';
+import {
+  getDocumentForDownload,
+  listCaseDocuments,
+  listDocumentVersions,
+  documentStorageKey,
+  uploadCaseDocument,
+  type DocumentsDeps,
+  type IncomingFile,
+} from './documents.service';
+import {
+  documentIdParamsSchema,
+  documentListResponseSchema,
+  documentResponseSchema,
+  downloadQuerySchema,
+  listDocumentsQuerySchema,
+  uploadQuerySchema,
+} from './documents.schemas';
+import { contentDispositionHeader } from './content-disposition';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
 import { ValidationError } from '../../shared/errors';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
@@ -42,6 +58,55 @@ async function readUpload(request: FastifyRequest): Promise<IncomingFile> {
 export default async function documentsRoutes(app: FastifyInstance, options: DocumentsRoutesOptions): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
   const deps: DocumentsDeps = { dataSource: app.dataSource, storage: options.storage, uploadConfig: options.uploadConfig };
+
+  typedApp.get('/cases/:id/documents', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      querystring: listDocumentsQuerySchema,
+      response: { 200: documentListResponseSchema },
+    },
+  }, async (request) => {
+    const rows = await listCaseDocuments(app.dataSource, request.user, request.params.id, {
+      informationRequestId: request.query.informationRequestId,
+      includeHistory: request.query.includeHistory,
+    });
+    return rows.map(serializeDocument);
+  });
+
+  typedApp.get('/documents/:id/versions', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      params: documentIdParamsSchema,
+      response: { 200: documentListResponseSchema },
+    },
+  }, async (request) => {
+    const rows = await listDocumentVersions(app.dataSource, request.user, request.params.id);
+    return rows.map(serializeDocument);
+  });
+
+  typedApp.get('/documents/:id/download', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Documents'],
+      security: [{ bearerAuth: [] }],
+      params: documentIdParamsSchema,
+      querystring: downloadQuerySchema,
+    },
+  }, async (request, reply) => {
+    const document = await getDocumentForDownload(app.dataSource, request.user, request.params.id);
+    const stream = await options.storage.get(documentStorageKey(document.caseId, document.id));
+    reply
+      .header('Content-Type', document.mimeType)
+      .header('Content-Disposition', contentDispositionHeader(request.query.disposition, document.filename))
+      .header('Content-Length', String(document.sizeBytes))
+      .header('X-Content-Type-Options', 'nosniff');
+    return reply.send(stream);
+  });
 
   typedApp.post('/cases/:id/documents', {
     preHandler: [app.authenticate],

@@ -20,3 +20,15 @@ export const documentResponseSchema = z.object({
   uploaderId: z.string(),
   createdAt: z.string(),
 });
+export const documentIdParamsSchema = z.object({ id: z.string().uuid() });
+
+export const listDocumentsQuerySchema = z.object({
+  informationRequestId: z.string().uuid().optional(),
+  includeHistory: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+});
+
+export const downloadQuerySchema = z.object({
+  disposition: z.enum(['attachment', 'inline']).default('attachment'),
+});
+
+export const documentListResponseSchema = z.array(documentResponseSchema);
