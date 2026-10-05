@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { CaseComment } from './entities/case-comment.entity';
-import { createComment, listComments } from './comments.service';
-import { commentListResponseSchema, commentResponseSchema, createCommentBodySchema } from './comments.schemas';
+import { createComment, deleteComment, editComment, listComments } from './comments.service';
+import { commentIdParamsSchema, commentListResponseSchema, commentResponseSchema, createCommentBodySchema, editCommentBodySchema } from './comments.schemas';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
 
 export function serializeComment(row: CaseComment) {
@@ -45,5 +45,31 @@ export default async function commentsRoutes(app: FastifyInstance): Promise<void
   }, async (request, reply) => {
     const comment = await createComment(app.dataSource, request.user, request.params.id, request.body);
     reply.status(201).send(serializeComment(comment));
+  });
+
+  typedApp.patch('/comments/:id', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Comments'],
+      security: [{ bearerAuth: [] }],
+      params: commentIdParamsSchema,
+      body: editCommentBodySchema,
+      response: { 200: commentResponseSchema },
+    },
+  }, async (request) => {
+    const comment = await editComment(app.dataSource, request.user, request.params.id, request.body.body);
+    return serializeComment(comment);
+  });
+
+  typedApp.delete('/comments/:id', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Comments'],
+      security: [{ bearerAuth: [] }],
+      params: commentIdParamsSchema,
+    },
+  }, async (request, reply) => {
+    await deleteComment(app.dataSource, request.user, request.params.id);
+    reply.status(204).send();
   });
 }
