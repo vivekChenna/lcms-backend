@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## frontend-integration (readiness for the React frontend)
 
+- [Task 11 — Final review fixes](decisions/frontend-integration/task-11-final-review-fixes.md)
 - [Task 10 — Audit coverage guard (test-only)](decisions/frontend-integration/task-10-audit-coverage-guard.md)
 - [Task 9 — Mark all notifications read](decisions/frontend-integration/task-09-mark-all-read.md)
 - [Task 8 — Case audit endpoint](decisions/frontend-integration/task-08-case-audit-endpoint.md)

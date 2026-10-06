@@ -1,10 +1,9 @@
 import type { DataSource } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { getCaseById, type Actor } from '../cases/cases.service';
+import { isLegalRole } from '../cases/case-access';
 import { buildPaginatedResponse, paginationToSkipTake } from '../../shared/pagination';
 import { serializeAuditRows } from './audit.serialize';
-
-const LEGAL_ROLES = new Set(['admin', 'legal_manager', 'legal_rep']);
 
 export async function listCaseAudit(
   dataSource: DataSource,
@@ -17,7 +16,7 @@ export async function listCaseAudit(
   const qb = dataSource.getRepository(AuditLog).createQueryBuilder('a').where('a."caseId" = :caseId', { caseId });
   if (query.createdFrom) qb.andWhere('a."createdAt" >= :createdFrom', { createdFrom: query.createdFrom });
   if (query.createdTo) qb.andWhere('a."createdAt" <= :createdTo', { createdTo: query.createdTo });
-  if (!LEGAL_ROLES.has(actor.role)) {
+  if (!isLegalRole(actor.role)) {
     // Requesters and viewers must not learn legal-only content: internal notes
     // (their text is stored in the audit values) and the rejection reason.
     // The isInternal check is not limited to comment.* actions so any future

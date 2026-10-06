@@ -12,9 +12,6 @@ export const EXEMPT_ROUTES: Record<string, string> = {
   'POST /auth/change-password': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
   'PATCH /notifications/:id/read': 'Read state of a notification is not a business event.',
   'PATCH /notifications/read-all': 'Read state of notifications is not a business event.',
-  'PATCH /users/:id/activate':
-    'Activating an already-active user is a deliberate idempotent no-op that must not write a duplicate audit row '
-    + '(update-user.test.ts asserts zero rows); a real activation writes user.activated, covered by that same test file.',
 };
 
 // Values document the audit action(s) the route's service writes.
@@ -40,6 +37,7 @@ export const AUDITED_ROUTES: Record<string, string> = {
   'POST /users': 'user.created',
   'PATCH /users/:id': 'user.updated',
   'PATCH /users/:id/role': 'user.role_changed',
+  'PATCH /users/:id/activate': 'user.activated',
   'PATCH /users/:id/deactivate': 'user.deactivated',
   'PATCH /users/:id/reset-password': 'user.password_reset',
   'POST /entities': 'entity.created',

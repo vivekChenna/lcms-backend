@@ -9,7 +9,7 @@ const blankToUndefined = (value: unknown) => (typeof value === 'string' && value
 const optionalText = (max: number) => z.preprocess(blankToUndefined, z.string().trim().max(max).optional());
 const optionalEmail = z.preprocess(blankToUndefined, z.string().trim().max(320).email().optional());
 const optionalDate = z.preprocess(blankToUndefined, z.iso.date().optional());
-const optionalMoney = z.number().min(0).max(9_999_999_999_999.99).optional();
+const optionalMoney = z.number().min(0).max(999_999_999_999.99).optional();
 
 const intakeFields = {
   isConfidential: z.boolean().default(false),
@@ -56,7 +56,7 @@ export const updateCaseBodySchema = z.object({
   incidentDate: z.iso.date().nullable().optional(),
   businessDeadline: z.iso.date().nullable().optional(),
   counterparty: z.string().trim().max(300).nullable().optional(),
-  estimatedValue: z.number().min(0).max(9_999_999_999_999.99).nullable().optional(),
+  estimatedValue: z.number().min(0).max(999_999_999_999.99).nullable().optional(),
   thirdPartyDetails: z.string().trim().max(5000).nullable().optional(),
 });
 

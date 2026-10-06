@@ -180,6 +180,25 @@ describe('extra intake fields and the confidential flag', () => {
     await app.close();
   });
 
+  it('rejects an estimatedValue above numeric(14,2) on create and patch, and accepts the maximum', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const { master, requesterId, payload } = await requesterWorld();
+    const headers = authHeader(app, requesterId, 'requester');
+
+    const tooBig = await app.inject({ method: 'POST', url: '/cases', headers, payload: { ...payload, estimatedValue: 1_000_000_000_000 } });
+    expect(tooBig.statusCode).toBe(400);
+    const max = await app.inject({ method: 'POST', url: '/cases', headers, payload: { ...payload, estimatedValue: 999_999_999_999.99 } });
+    expect(max.statusCode).toBe(201);
+
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'Submitted' });
+    const patchBig = await app.inject({ method: 'PATCH', url: `/cases/${caseRow.id}`, headers, payload: { estimatedValue: 1_000_000_000_000 } });
+    expect(patchBig.statusCode).toBe(400);
+    const patchMax = await app.inject({ method: 'PATCH', url: `/cases/${caseRow.id}`, headers, payload: { estimatedValue: 999_999_999_999.99 } });
+    expect(patchMax.statusCode).toBe(200);
+    await app.close();
+  });
+
   it('migration columns round-trip through the fixture', async () => {
     const master = await seedCaseMasterData(ds);
     const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });

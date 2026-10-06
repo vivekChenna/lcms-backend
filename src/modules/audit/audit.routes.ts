@@ -31,7 +31,7 @@ export default async function auditRoutes(app: FastifyInstance, opts: { exportRo
   }, async (request) => {
     const query = request.query;
     const { skip, take } = paginationToSkipTake(query);
-    const [rows, total] = await filteredQuery(query).orderBy('a."createdAt"', 'DESC').skip(skip).take(take).getManyAndCount();
+    const [rows, total] = await filteredQuery(query).orderBy('a."createdAt"', 'DESC').addOrderBy('a.id', 'DESC').skip(skip).take(take).getManyAndCount();
     return buildPaginatedResponse(await serializeAuditRows(app.dataSource, rows), total, query);
   });
 

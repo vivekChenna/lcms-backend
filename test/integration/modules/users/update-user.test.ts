@@ -110,7 +110,7 @@ describe('PATCH /users/:id, PATCH /users/:id/activate, PATCH /users/:id/reset-pa
   });
 
   it('does not write a duplicate audit entry when activating an already-active user', async () => {
-    const app = buildTestApp(ds);
+    const app = buildTestApp(ds, { exemptRoutes: ['PATCH /users/:id/activate'] });
     await app.ready();
     const token = adminToken(app);
 

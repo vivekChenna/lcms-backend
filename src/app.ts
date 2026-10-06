@@ -40,6 +40,9 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   app.decorate('dataSource', dataSource);
   const security = options.security ?? securityConfigFromEnv(loadEnv());
   app.decorate('security', security);
+  if (security.corsOrigins.length === 0) {
+    app.log.warn('CORS_ORIGINS is empty: cookie-authenticated writes (POST/PATCH/PUT/DELETE) will be rejected with 403 CSRF_BLOCKED until CORS_ORIGINS lists the frontend origin, even when the frontend is served from the same origin as the API.');
+  }
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);

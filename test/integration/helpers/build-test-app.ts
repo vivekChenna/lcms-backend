@@ -41,6 +41,7 @@ export function buildTestApp(
     exportRowCap?: number;
     security?: Partial<SecurityConfig>;
     extraAuditedRoutes?: Record<string, string>;
+    exemptRoutes?: string[];
   } = {},
 ): FastifyInstance {
   const app = buildApp(dataSource, {
@@ -67,6 +68,7 @@ export function buildTestApp(
   // So rows are counted by a TypeORM subscriber, not by a SELECT COUNT(*).
   const auditRows = auditInsertCounter(dataSource);
   const audited = { ...AUDITED_ROUTES, ...options.extraAuditedRoutes };
+  for (const key of options.exemptRoutes ?? []) delete audited[key];
   app.addHook('onRequest', (request, _reply, done) => {
     if (MUTATING_METHODS.includes(request.method)) {
       (request as unknown as { auditBefore?: number }).auditBefore = auditRows.count;

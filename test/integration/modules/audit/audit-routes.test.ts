@@ -56,6 +56,24 @@ describe('GET /audit', () => {
     await app.close();
   });
 
+  it('orders rows sharing one createdAt by id so pages never repeat or skip', async () => {
+    for (let i = 0; i < 5; i++) await logAuditEvent(ds, { actorId: adminId, action: 'user.created' });
+    await ds.query(`UPDATE audit_log SET "createdAt" = '2026-01-01T00:00:00Z'`);
+    const app = buildTestApp(ds);
+    await app.ready();
+    const token = tokenFor(app, 'admin');
+    const seen: string[] = [];
+    for (const page of [1, 2, 3]) {
+      const res = await app.inject({ method: 'GET', url: `/audit?page=${page}&pageSize=2`, headers: { authorization: `Bearer ${token}` } });
+      expect(res.statusCode).toBe(200);
+      seen.push(...res.json().items.map((r: { id: string }) => r.id));
+    }
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+    expect(seen).toEqual([...seen].sort().reverse());
+    await app.close();
+  });
+
   it('returns paginated entries for an admin', async () => {
     await logAuditEvent(ds, { actorId: adminId, action: 'user.created' });
     await logAuditEvent(ds, { actorId: adminId, action: 'user.deactivated' });
