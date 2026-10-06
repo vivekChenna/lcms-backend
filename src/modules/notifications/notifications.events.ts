@@ -5,6 +5,7 @@ import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/entities/user-role.entity';
 import { Role } from '../users/entities/role.entity';
 import type { Case } from '../cases/entities/case.entity';
+import type { InformationRequest } from '../information-requests/entities/information-request.entity';
 
 export type NotificationSource = DataSource | EntityManager;
 export type CaseRef = Pick<Case, 'id' | 'referenceNumber' | 'title' | 'requesterId' | 'assignedLegalRepId'>;
@@ -150,4 +151,53 @@ export async function notifySlaBreached(source: NotificationSource, caseRow: Cas
     `SLA breached for case ${caseRow.referenceNumber}`,
     `Case "${caseRow.title}" (${caseRow.referenceNumber}) has passed its resolution due date.`,
   );
+}
+
+export type InformationRequestRef = Pick<InformationRequest, 'id' | 'responderId'>;
+
+export async function notifyInformationRequestRaised(
+  source: NotificationSource,
+  caseRow: CaseRef,
+  request: InformationRequestRef,
+): Promise<void> {
+  await createNotifications(source, 'info_request.raised', caseRow.id, [
+    {
+      userId: request.responderId,
+      title: `Information requested on case ${caseRow.referenceNumber}`,
+      body: `You have been asked to provide information on case "${caseRow.title}" (${caseRow.referenceNumber}).`,
+    },
+    {
+      userId: caseRow.requesterId,
+      title: `Information requested on case ${caseRow.referenceNumber}`,
+      body: `An information request has been raised on your case "${caseRow.title}" (${caseRow.referenceNumber}).`,
+    },
+  ]);
+}
+
+export async function notifyInformationRequestAnswered(
+  source: NotificationSource,
+  caseRow: CaseRef,
+  _request: InformationRequestRef,
+): Promise<void> {
+  await createNotifications(source, 'info_request.answered', caseRow.id, [
+    {
+      userId: caseRow.assignedLegalRepId,
+      title: `Information received on case ${caseRow.referenceNumber}`,
+      body: `An information request on case "${caseRow.title}" (${caseRow.referenceNumber}) has been answered.`,
+    },
+  ]);
+}
+
+export async function notifyInformationRequestReopened(
+  source: NotificationSource,
+  caseRow: CaseRef,
+  request: InformationRequestRef,
+): Promise<void> {
+  await createNotifications(source, 'info_request.reopened', caseRow.id, [
+    {
+      userId: request.responderId,
+      title: `Information request reopened on case ${caseRow.referenceNumber}`,
+      body: `An information request on case "${caseRow.title}" (${caseRow.referenceNumber}) has been reopened and needs a new response.`,
+    },
+  ]);
 }
