@@ -6,6 +6,7 @@ import { UnauthorizedError } from '../shared/errors';
 import type { AuthenticatedUser } from '../shared/rbac';
 import { User } from '../modules/users/entities/user.entity';
 import { loadAuthenticatedUser } from '../modules/auth/auth.service';
+import { ACCESS_COOKIE } from '../config/security';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -14,12 +15,27 @@ declare module 'fastify' {
   }
 }
 
+// Header first. When an Authorization header is present at all (Bearer, Basic,
+// malformed, blank) the request is authenticated by that header or not at all:
+// the CSRF plugin skips its Origin check for any request carrying the header,
+// so falling back to the cookie here would let a cross-site request ride the
+// browser's cookie past the CSRF guard.
+function extractToken(request: FastifyRequest): string | undefined {
+  const header = request.headers.authorization;
+  if (header !== undefined) {
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    return match ? match[1] : undefined;
+  }
+  return request.cookies?.[ACCESS_COOKIE];
+}
+
 export default fp(async function authPlugin(app: FastifyInstance) {
   const env = loadEnv();
 
   await app.register(fastifyJwt, {
     secret: env.JWT_ACCESS_SECRET,
     sign: { expiresIn: env.JWT_ACCESS_EXPIRES_IN },
+    verify: { extractToken },
   });
 
   app.decorate('signAccessToken', (payload: AuthenticatedUser): string => {

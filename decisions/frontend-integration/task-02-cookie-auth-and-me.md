@@ -1,0 +1,7 @@
+# Task 2 — Cookie authentication and GET /auth/me
+
+**Date:** 2026-10-09
+
+**What:** `POST /auth/login` and `POST /auth/refresh` now set two httpOnly cookies (`lcms_access`, path `/`, and `lcms_refresh`, path `/auth`) with the attributes from `app.security`, and still return `{ accessToken, refreshToken, user }` in the body. `user` is now the full profile (name, email, designation, role, and department / entity / business unit ids with names), the same shape `GET /auth/me` returns. The access token is read from the `Authorization: Bearer` header first, then from the `lcms_access` cookie. `refresh` and `logout` take an optional body and fall back to the `lcms_refresh` cookie. `logout` always answers 204 and clears both cookies; `refresh` with no token anywhere answers 401.
+
+**Why:** The React frontend keeps tokens out of JavaScript by using httpOnly cookies, and needs one call to load the signed-in user on page load. Bearer clients and tokens in the response body keep working. When any `Authorization` header is present (Bearer, Basic, malformed or blank) the request is authenticated by that header or rejected with 401; it never falls back to the cookie. The CSRF plugin skips its Origin check for requests that carry an `Authorization` header, so a cookie fallback there would let a cross-site request get past the CSRF guard. The refresh cookie is scoped to `/auth` so it is only sent to the auth routes.

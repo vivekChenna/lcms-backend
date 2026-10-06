@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## frontend-integration (readiness for the React frontend)
 
+- [Task 2 — Cookie authentication and GET /auth/me](decisions/frontend-integration/task-02-cookie-auth-and-me.md)
 - [Task 1 — Security configuration, CORS and CSRF protection](decisions/frontend-integration/task-01-security-cors-csrf.md)
 
 ## startup (operational fixes)

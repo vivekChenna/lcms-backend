@@ -4,6 +4,9 @@ import { User } from '../users/entities/user.entity';
 import { Role } from '../users/entities/role.entity';
 import { UserRole } from '../users/entities/user-role.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { Department } from '../master-data/entities/department.entity';
+import { OrgEntity } from '../master-data/entities/org-entity.entity';
+import { BusinessUnit } from '../master-data/entities/business-unit.entity';
 import { verifyPassword, hashPassword } from '../../shared/password';
 import { UnauthorizedError, ValidationError } from '../../shared/errors';
 import type { AuthenticatedUser } from '../../shared/rbac';
@@ -25,6 +28,29 @@ export async function loadAuthenticatedUser(dataSource: DataSource, user: User):
     departmentId: user.departmentId,
     entityId: user.entityId,
     businessUnitId: user.businessUnitId,
+  };
+}
+
+export type Profile = {
+  id: string; fullName: string; email: string; designation: string | null; role: string;
+  departmentId: string | null; departmentName: string | null;
+  entityId: string | null; entityName: string | null;
+  businessUnitId: string | null; businessUnitName: string | null;
+};
+
+export async function loadProfile(dataSource: DataSource, userId: string): Promise<Profile> {
+  const user = await dataSource.getRepository(User).findOneOrFail({ where: { id: userId } });
+  const { role } = await loadAuthenticatedUser(dataSource, user);
+  const [department, entity, businessUnit] = await Promise.all([
+    user.departmentId ? dataSource.getRepository(Department).findOne({ where: { id: user.departmentId } }) : null,
+    user.entityId ? dataSource.getRepository(OrgEntity).findOne({ where: { id: user.entityId } }) : null,
+    user.businessUnitId ? dataSource.getRepository(BusinessUnit).findOne({ where: { id: user.businessUnitId } }) : null,
+  ]);
+  return {
+    id: user.id, fullName: user.fullName, email: user.email, designation: user.designation, role,
+    departmentId: user.departmentId, departmentName: department?.name ?? null,
+    entityId: user.entityId, entityName: entity?.name ?? null,
+    businessUnitId: user.businessUnitId, businessUnitName: businessUnit?.name ?? null,
   };
 }
 
