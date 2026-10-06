@@ -147,18 +147,29 @@ export async function createUser(
   return toUserWithRole(user, 'requester');
 }
 
+export type ListUsersQuery = PaginationQuery & { role?: RoleName; isActive?: boolean; search?: string };
+
 export async function listUsers(
   dataSource: DataSource,
-  query: PaginationQuery,
+  query: ListUsersQuery,
 ): Promise<{ items: UserWithRole[]; total: number }> {
   const { skip, take } = paginationToSkipTake(query);
-  const repo = dataSource.getRepository(User);
-  const total = await repo.count();
 
-  const { entities, raw } = await repo
+  const qb = dataSource
+    .getRepository(User)
     .createQueryBuilder('user')
     .leftJoin(UserRole, 'ur', 'ur."userId" = user.id')
-    .leftJoin(Role, 'role', 'role.id = ur."roleId"')
+    .leftJoin(Role, 'role', 'role.id = ur."roleId"');
+  if (query.role) qb.andWhere('role.name = :role', { role: query.role });
+  if (query.isActive !== undefined) qb.andWhere('user.isActive = :isActive', { isActive: query.isActive });
+  if (query.search) {
+    qb.andWhere('(user.fullName ILIKE :search OR user.email ILIKE :search)', {
+      search: `%${query.search.replace(/[\\%_]/g, '\\$&')}%`,
+    });
+  }
+
+  const total = await qb.getCount();
+  const { entities, raw } = await qb
     .addSelect('role.name', 'role_name')
     .orderBy('user.createdAt', 'DESC')
     .skip(skip)

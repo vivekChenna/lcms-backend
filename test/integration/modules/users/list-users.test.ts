@@ -92,4 +92,77 @@ describe('GET /users, GET /users/:id', () => {
 
     await app.close();
   });
+
+  describe('filters', () => {
+    async function seedFilterUsers() {
+      await seedUserWithRole(ds, 'legal_rep', { email: 'rep.active@algihaz.local', fullName: 'Active Rep' });
+      await seedUserWithRole(ds, 'legal_rep', { email: 'rep.inactive@algihaz.local', fullName: 'Inactive Rep', isActive: false });
+      await seedUserWithRole(ds, 'requester', { email: 'someone@algihaz.local', fullName: 'Some Requester' });
+    }
+
+    async function list(query: string) {
+      const app = buildTestApp(ds);
+      await app.ready();
+      const res = await app.inject({ method: 'GET', url: `/users${query}`, headers: { authorization: `Bearer ${adminToken(app)}` } });
+      await app.close();
+      return res;
+    }
+
+    it('filters by role and reflects the filter in total', async () => {
+      await seedFilterUsers();
+      const body = (await list('?role=legal_rep')).json();
+      expect(body.total).toBe(2);
+      expect(body.items).toHaveLength(2);
+      expect(body.items.every((u: { role: string }) => u.role === 'legal_rep')).toBe(true);
+    });
+
+    it('filters by role and isActive', async () => {
+      await seedFilterUsers();
+      const active = (await list('?role=legal_rep&isActive=true')).json();
+      expect(active.total).toBe(1);
+      expect(active.items[0].email).toBe('rep.active@algihaz.local');
+      const inactive = (await list('?isActive=false')).json();
+      expect(inactive.total).toBe(1);
+      expect(inactive.items[0].email).toBe('rep.inactive@algihaz.local');
+    });
+
+    it('searches fullName or email case-insensitively', async () => {
+      await seedFilterUsers();
+      const byEmail = (await list('?search=SOMEONE@')).json();
+      expect(byEmail.total).toBe(1);
+      expect(byEmail.items[0].email).toBe('someone@algihaz.local');
+      const byName = (await list('?search=inactive%20rep')).json();
+      expect(byName.total).toBe(1);
+      expect(byName.items[0].email).toBe('rep.inactive@algihaz.local');
+    });
+
+    it('treats % and _ in search as literal characters', async () => {
+      await seedFilterUsers();
+      expect((await list('?search=%25')).json().total).toBe(0);
+      expect((await list('?search=rep_active')).json().total).toBe(0);
+    });
+
+    it('paginates the filtered set', async () => {
+      await seedFilterUsers();
+      const body = (await list('?role=legal_rep&pageSize=1&page=2')).json();
+      expect(body.total).toBe(2);
+      expect(body.items).toHaveLength(1);
+    });
+
+    it('rejects an invalid role, isActive or blank search with 400', async () => {
+      expect((await list('?role=wizard')).statusCode).toBe(400);
+      expect((await list('?isActive=maybe')).statusCode).toBe(400);
+      expect((await list('?search=%20%20')).statusCode).toBe(400);
+    });
+
+    it('still forbids a legal_rep caller', async () => {
+      const app = buildTestApp(ds);
+      await app.ready();
+      const repId = await seedUserWithRole(ds, 'legal_rep');
+      const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+      const res = await app.inject({ method: 'GET', url: '/users?role=legal_rep', headers: { authorization: `Bearer ${token}` } });
+      expect(res.statusCode).toBe(403);
+      await app.close();
+    });
+  });
 });

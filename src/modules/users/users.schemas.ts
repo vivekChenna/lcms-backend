@@ -28,7 +28,11 @@ export const userResponseSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const userListQuerySchema = paginationQuerySchema;
+export const userListQuerySchema = paginationQuerySchema.extend({
+  role: z.enum(ROLE_NAMES).optional(),
+  isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  search: z.string().trim().min(1).optional(),
+});
 
 export const userListResponseSchema = z.object({
   items: z.array(userResponseSchema),
