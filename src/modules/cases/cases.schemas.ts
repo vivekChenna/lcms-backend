@@ -74,6 +74,8 @@ export const caseListQuerySchema = paginationQuerySchema.extend({
   open: z.literal('true').transform(() => true).optional(),
 });
 
+export const caseExportQuerySchema = caseListQuerySchema.omit({ page: true, pageSize: true });
+
 export const caseResponseSchema = z.object({
   id: z.string(),
   referenceNumber: z.string(),

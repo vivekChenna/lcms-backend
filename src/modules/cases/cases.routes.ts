@@ -2,12 +2,15 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
+import { CASE_EXPORT_COLUMNS } from './cases.export';
+import { toCsv, sendCsv, DEFAULT_EXPORT_ROW_CAP } from '../dashboards-reports/csv';
 import type { Case } from './entities/case.entity';
 import { acceptAssignment, assignCase, closeCase, rejectAssignment, setEscalation } from './cases.workflow.service';
-import { getCaseById, listCases, submitCase, updateCase, updatePriority } from './cases.service';
+import { getCaseById, listCases, listCasesForExport, submitCase, updateCase, updatePriority } from './cases.service';
 import {
   assignCaseBodySchema,
   caseIdParamsSchema,
+  caseExportQuerySchema,
   caseListQuerySchema,
   caseListResponseSchema,
   caseResponseSchema,
@@ -41,7 +44,7 @@ export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours
   };
 }
 
-export default async function casesRoutes(app: FastifyInstance): Promise<void> {
+export default async function casesRoutes(app: FastifyInstance, opts: { exportRowCap?: number } = {}): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   typedApp.get('/cases', {
@@ -61,6 +64,21 @@ export default async function casesRoutes(app: FastifyInstance): Promise<void> {
       businessUnitId: request.user.businessUnitId,
     }, request.query);
     return { ...result, items: result.items.map(serializeCase) };
+  });
+
+  typedApp.get('/cases/export', {
+    preHandler: [app.authenticate],
+    schema: { tags: ['Cases'], security: [{ bearerAuth: [] }], querystring: caseExportQuerySchema },
+  }, async (request, reply) => {
+    const cap = opts.exportRowCap ?? DEFAULT_EXPORT_ROW_CAP;
+    const { rows, total } = await listCasesForExport(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.query, cap);
+    return sendCsv(reply, 'cases', toCsv(rows, CASE_EXPORT_COLUMNS), { total, truncated: total > rows.length });
   });
 
   typedApp.get('/cases/:id', {

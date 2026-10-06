@@ -7,10 +7,11 @@ import { InMemoryObjectStorage } from './in-memory-storage';
 
 export function buildTestApp(
   dataSource: DataSource,
-  options: { storage?: ObjectStorage; uploadConfig?: Partial<UploadConfig> } = {},
+  options: { storage?: ObjectStorage; uploadConfig?: Partial<UploadConfig>; exportRowCap?: number } = {},
 ): FastifyInstance {
   return buildApp(dataSource, {
     storage: options.storage ?? new InMemoryObjectStorage(),
     uploadConfig: { ...DEFAULT_UPLOAD_CONFIG, ...options.uploadConfig },
+    exportRowCap: options.exportRowCap,
   });
 }

@@ -24,7 +24,7 @@ declare module 'fastify' {
   }
 }
 
-export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig };
+export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig; exportRowCap?: number };
 
 export function buildApp(dataSource: DataSource, options: AppOptions): FastifyInstance {
   const uploadConfig = options.uploadConfig ?? DEFAULT_UPLOAD_CONFIG;
@@ -48,10 +48,10 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   app.register(rateLimitPlugin);
   app.register(authPlugin);
   app.register(authRoutes);
-  app.register(auditRoutes);
+  app.register(auditRoutes, { exportRowCap: options.exportRowCap });
   app.register(usersRoutes);
   app.register(masterDataRoutes);
-  app.register(casesRoutes);
+  app.register(casesRoutes, { exportRowCap: options.exportRowCap });
   app.register(informationRequestsRoutes);
   app.register(commentsRoutes);
   app.register(documentsRoutes, { storage: options.storage, uploadConfig });

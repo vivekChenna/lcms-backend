@@ -225,6 +225,19 @@ export async function listCases(
   return { items: rows.map((row) => toCaseWithSla(row)), total, page: query.page, pageSize: query.pageSize };
 }
 
+export async function listCasesForExport(
+  dataSource: DataSource,
+  actor: Actor,
+  query: CaseFilterQuery,
+  limit: number,
+): Promise<{ rows: ReturnType<typeof toCaseWithSla>[]; total: number }> {
+  const qb = dataSource.getRepository(Case).createQueryBuilder('c');
+  applyCaseFilters(qb, actor, query);
+  const total = await qb.getCount();
+  const rows = await qb.orderBy('c."createdAt"', 'DESC').addOrderBy('c."id"', 'DESC').limit(limit).getMany();
+  return { rows: rows.map((row) => toCaseWithSla(row)), total };
+}
+
 export async function getCaseById(dataSource: DataSource, actor: Actor, caseId: string) {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
   if (!caseRow) {
