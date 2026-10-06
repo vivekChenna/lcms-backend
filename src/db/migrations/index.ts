@@ -11,6 +11,7 @@ import { CreateCases1700000010000 } from './1700000010000-create-cases';
 import { CreateInformationRequests1700000011000 } from './1700000011000-create-information-requests';
 import { CreateDocumentsAndComments1700000012000 } from './1700000012000-create-documents-and-comments';
 import { CreateNotifications1700000013000 } from './1700000013000-create-notifications';
+import { AddIntakeFieldsToCases1700000014000 } from './1700000014000-add-intake-fields-to-cases';
 
 export const migrations = [
   CreateUsersAndRoles1700000001000,
@@ -26,4 +27,5 @@ export const migrations = [
   CreateInformationRequests1700000011000,
   CreateDocumentsAndComments1700000012000,
   CreateNotifications1700000013000,
+  AddIntakeFieldsToCases1700000014000,
 ];

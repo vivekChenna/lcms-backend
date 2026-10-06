@@ -5,6 +5,25 @@ export const CASE_STATUSES = ['Submitted', 'Assigned', 'In Progress', 'Waiting o
 export const CASE_PRIORITIES = ['P1', 'P2', 'P3', 'P4'] as const;
 export const SLA_STATES = ['on_track', 'at_risk', 'breached', 'met'] as const;
 
+const blankToUndefined = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
+const optionalText = (max: number) => z.preprocess(blankToUndefined, z.string().trim().max(max).optional());
+const optionalEmail = z.preprocess(blankToUndefined, z.string().trim().max(320).email().optional());
+const optionalDate = z.preprocess(blankToUndefined, z.iso.date().optional());
+const optionalMoney = z.number().min(0).max(9_999_999_999_999.99).optional();
+
+const intakeFields = {
+  isConfidential: z.boolean().default(false),
+  contactName: optionalText(200),
+  contactEmail: optionalEmail,
+  contactPhone: optionalText(50),
+  desiredOutcome: optionalText(5000),
+  incidentDate: optionalDate,
+  businessDeadline: optionalDate,
+  counterparty: optionalText(300),
+  estimatedValue: optionalMoney,
+  thirdPartyDetails: optionalText(5000),
+};
+
 export const createCaseBodySchema = z.object({
   title: z.string().min(1),
   description: z.string().min(20),
@@ -20,6 +39,7 @@ export const createCaseBodySchema = z.object({
   entityId: z.string().uuid().optional(),
   businessUnitId: z.string().uuid().optional(),
   priority: z.enum(CASE_PRIORITIES).default('P3'),
+  ...intakeFields,
 });
 
 export const updateCaseBodySchema = z.object({
@@ -28,6 +48,16 @@ export const updateCaseBodySchema = z.object({
   categoryId: z.string().uuid().optional(),
   caseTypeId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
+  isConfidential: z.boolean().optional(),
+  contactName: z.string().trim().max(200).nullable().optional(),
+  contactEmail: z.string().trim().max(320).email().nullable().optional(),
+  contactPhone: z.string().trim().max(50).nullable().optional(),
+  desiredOutcome: z.string().trim().max(5000).nullable().optional(),
+  incidentDate: z.iso.date().nullable().optional(),
+  businessDeadline: z.iso.date().nullable().optional(),
+  counterparty: z.string().trim().max(300).nullable().optional(),
+  estimatedValue: z.number().min(0).max(9_999_999_999_999.99).nullable().optional(),
+  thirdPartyDetails: z.string().trim().max(5000).nullable().optional(),
 });
 
 export const updatePriorityBodySchema = z.object({
@@ -101,6 +131,16 @@ export const caseResponseSchema = z.object({
   closureOutcomeId: z.string().nullable(),
   closedById: z.string().nullable(),
   closedAt: z.string().nullable(),
+  isConfidential: z.boolean(),
+  contactName: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  desiredOutcome: z.string().nullable(),
+  incidentDate: z.string().nullable(),
+  businessDeadline: z.string().nullable(),
+  counterparty: z.string().nullable(),
+  estimatedValue: z.number().nullable(),
+  thirdPartyDetails: z.string().nullable(),
   requesterName: z.string().nullable(),
   requesterDesignation: z.string().nullable(),
   assignedLegalRepName: z.string().nullable(),

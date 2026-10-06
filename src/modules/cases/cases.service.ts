@@ -28,6 +28,16 @@ export type CreateCaseInput = {
   entityId?: string;
   businessUnitId?: string;
   priority: 'P1' | 'P2' | 'P3' | 'P4';
+  isConfidential?: boolean;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  desiredOutcome?: string;
+  incidentDate?: string;
+  businessDeadline?: string;
+  counterparty?: string;
+  estimatedValue?: number;
+  thirdPartyDetails?: string;
 };
 
 export type Actor = { id: string; role: string; departmentId: string | null; entityId: string | null; businessUnitId: string | null };
@@ -119,6 +129,16 @@ export async function submitCase(dataSource: DataSource, actor: Actor, input: Cr
       closureOutcomeId: null,
       closedById: null,
       closedAt: null,
+      isConfidential: input.isConfidential ?? false,
+      contactName: input.contactName ?? null,
+      contactEmail: input.contactEmail ?? null,
+      contactPhone: input.contactPhone ?? null,
+      desiredOutcome: input.desiredOutcome ?? null,
+      incidentDate: input.incidentDate ?? null,
+      businessDeadline: input.businessDeadline ?? null,
+      counterparty: input.counterparty ?? null,
+      estimatedValue: input.estimatedValue ?? null,
+      thirdPartyDetails: input.thirdPartyDetails ?? null,
     }),
   );
 
@@ -267,6 +287,16 @@ export type UpdateCaseInput = {
   categoryId?: string;
   caseTypeId?: string;
   departmentId?: string;
+  isConfidential?: boolean;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  desiredOutcome?: string | null;
+  incidentDate?: string | null;
+  businessDeadline?: string | null;
+  counterparty?: string | null;
+  estimatedValue?: number | null;
+  thirdPartyDetails?: string | null;
 };
 
 export async function updateCase(dataSource: DataSource, actor: Actor, caseId: string, input: UpdateCaseInput): Promise<Case> {
@@ -322,6 +352,16 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
     categoryId: caseRow.categoryId,
     caseTypeId: caseRow.caseTypeId,
     departmentId: caseRow.departmentId,
+    isConfidential: caseRow.isConfidential,
+    contactName: caseRow.contactName,
+    contactEmail: caseRow.contactEmail,
+    contactPhone: caseRow.contactPhone,
+    desiredOutcome: caseRow.desiredOutcome,
+    incidentDate: caseRow.incidentDate,
+    businessDeadline: caseRow.businessDeadline,
+    counterparty: caseRow.counterparty,
+    estimatedValue: caseRow.estimatedValue,
+    thirdPartyDetails: caseRow.thirdPartyDetails,
   };
 
   if (input.title !== undefined) caseRow.title = input.title;
@@ -329,6 +369,16 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
   if (input.categoryId !== undefined) caseRow.categoryId = input.categoryId;
   if (input.caseTypeId !== undefined) caseRow.caseTypeId = input.caseTypeId;
   if (input.departmentId !== undefined) caseRow.departmentId = input.departmentId;
+  if (input.isConfidential !== undefined) caseRow.isConfidential = input.isConfidential;
+  if (input.contactName !== undefined) caseRow.contactName = input.contactName;
+  if (input.contactEmail !== undefined) caseRow.contactEmail = input.contactEmail;
+  if (input.contactPhone !== undefined) caseRow.contactPhone = input.contactPhone;
+  if (input.desiredOutcome !== undefined) caseRow.desiredOutcome = input.desiredOutcome;
+  if (input.incidentDate !== undefined) caseRow.incidentDate = input.incidentDate;
+  if (input.businessDeadline !== undefined) caseRow.businessDeadline = input.businessDeadline;
+  if (input.counterparty !== undefined) caseRow.counterparty = input.counterparty;
+  if (input.estimatedValue !== undefined) caseRow.estimatedValue = input.estimatedValue;
+  if (input.thirdPartyDetails !== undefined) caseRow.thirdPartyDetails = input.thirdPartyDetails;
 
   await repo.save(caseRow);
   await logAuditEvent(dataSource, {
@@ -343,6 +393,16 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
       categoryId: caseRow.categoryId,
       caseTypeId: caseRow.caseTypeId,
       departmentId: caseRow.departmentId,
+      isConfidential: caseRow.isConfidential,
+      contactName: caseRow.contactName,
+      contactEmail: caseRow.contactEmail,
+      contactPhone: caseRow.contactPhone,
+      desiredOutcome: caseRow.desiredOutcome,
+      incidentDate: caseRow.incidentDate,
+      businessDeadline: caseRow.businessDeadline,
+      counterparty: caseRow.counterparty,
+      estimatedValue: caseRow.estimatedValue,
+      thirdPartyDetails: caseRow.thirdPartyDetails,
       referenceNumber: caseRow.referenceNumber,
     },
   });

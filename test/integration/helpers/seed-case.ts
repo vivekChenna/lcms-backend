@@ -64,6 +64,16 @@ export async function seedCase(
     slaAckHours: number;
     slaResolutionHours: number;
     submittedAt: Date;
+    isConfidential: boolean;
+    contactName: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    desiredOutcome: string | null;
+    incidentDate: string | null;
+    businessDeadline: string | null;
+    counterparty: string | null;
+    estimatedValue: number | null;
+    thirdPartyDetails: string | null;
   }> = {},
 ): Promise<Case> {
   // Inlined rather than importing computeDueDates from ./sla — Task 4 (sla.ts)
@@ -101,6 +111,16 @@ export async function seedCase(
     closureOutcomeId: null,
     closedById: null,
     closedAt: null,
+    isConfidential: overrides.isConfidential ?? false,
+    contactName: overrides.contactName ?? null,
+    contactEmail: overrides.contactEmail ?? null,
+    contactPhone: overrides.contactPhone ?? null,
+    desiredOutcome: overrides.desiredOutcome ?? null,
+    incidentDate: overrides.incidentDate ?? null,
+    businessDeadline: overrides.businessDeadline ?? null,
+    counterparty: overrides.counterparty ?? null,
+    estimatedValue: overrides.estimatedValue ?? null,
+    thirdPartyDetails: overrides.thirdPartyDetails ?? null,
   });
   return repo.save(caseRow);
 }

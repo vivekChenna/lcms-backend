@@ -80,6 +80,36 @@ export class Case {
   @Column({ type: 'timestamptz', nullable: true })
   closedAt!: Date | null;
 
+  @Column({ type: 'boolean', default: false })
+  isConfidential!: boolean;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  contactName!: string | null;
+
+  @Column({ type: 'varchar', length: 320, nullable: true })
+  contactEmail!: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  contactPhone!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  desiredOutcome!: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  incidentDate!: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  businessDeadline!: string | null;
+
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  counterparty!: string | null;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true, transformer: { to: (v: number | null) => v, from: (v: string | null) => (v === null ? null : Number(v)) } })
+  estimatedValue!: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  thirdPartyDetails!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
