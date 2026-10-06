@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## frontend-integration (readiness for the React frontend)
+
+- [Task 1 — Security configuration, CORS and CSRF protection](decisions/frontend-integration/task-01-security-cors-csrf.md)
+
 ## startup (operational fixes)
 
 - [Task 1 — Do not crash on missing S3 or SMTP configuration](decisions/startup/task-01-optional-storage-and-email.md)

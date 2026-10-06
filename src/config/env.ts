@@ -22,6 +22,10 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().min(1).optional(),
   MAIL_FROM: z.string().min(1).optional(),
+  CORS_ORIGINS: z.string().default(''),
+  COOKIE_SECURE: z.enum(['true', 'false']).optional(),
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  COOKIE_DOMAIN: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

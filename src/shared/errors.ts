@@ -43,3 +43,8 @@ export class ServiceUnavailableError extends AppError {
   readonly statusCode = 503;
   readonly code = 'SERVICE_UNAVAILABLE';
 }
+
+export class CsrfBlockedError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'CSRF_BLOCKED';
+}

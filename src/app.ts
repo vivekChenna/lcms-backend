@@ -1,11 +1,16 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import type { DataSource } from 'typeorm';
 import multipart from '@fastify/multipart';
+import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { registerErrorHandler } from './plugins/error-handler';
 import swaggerPlugin from './plugins/swagger';
 import rateLimitPlugin from './plugins/rate-limit';
 import authPlugin from './plugins/auth';
+import csrfPlugin from './plugins/csrf';
+import { securityConfigFromEnv, type SecurityConfig } from './config/security';
+import { loadEnv } from './config/env';
 import authRoutes from './modules/auth/auth.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import usersRoutes from './modules/users/users.routes';
@@ -23,15 +28,18 @@ import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from './modules/documents/up
 declare module 'fastify' {
   interface FastifyInstance {
     dataSource: DataSource;
+    security: SecurityConfig;
   }
 }
 
-export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig; exportRowCap?: number };
+export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig; exportRowCap?: number; security?: SecurityConfig };
 
 export function buildApp(dataSource: DataSource, options: AppOptions): FastifyInstance {
   const uploadConfig = options.uploadConfig ?? DEFAULT_UPLOAD_CONFIG;
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
   app.decorate('dataSource', dataSource);
+  const security = options.security ?? securityConfigFromEnv(loadEnv());
+  app.decorate('security', security);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);
@@ -46,6 +54,14 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
     limits: { fileSize: uploadConfig.maxBytes + 1, files: 1, fields: 0, parts: 1, fieldSize: 1024, headerPairs: 20 },
     defCharset: 'utf8',
   });
+  app.register(cookie);
+  app.register(cors, {
+    origin: security.corsOrigins.length > 0 ? security.corsOrigins : false,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    exposedHeaders: ['Content-Disposition', 'X-Export-Total', 'X-Export-Truncated'],
+  });
+  app.register(csrfPlugin);
   app.register(swaggerPlugin);
   app.register(rateLimitPlugin);
   app.register(authPlugin);
