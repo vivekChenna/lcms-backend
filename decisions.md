@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## dashboards-reports (Phase 2, sub-project 6)
 
+- [Task 5 — SLA compliance and ageing reports](decisions/dashboards-reports/task-05-reports-sla-ageing.md)
 - [Task 4 — Dashboard](decisions/dashboards-reports/task-04-dashboard.md)
 - [Task 3 — Case repository and audit CSV exports](decisions/dashboards-reports/task-03-case-and-audit-export.md)
 - [Task 2 — CSV builder](decisions/dashboards-reports/task-02-csv-builder.md)

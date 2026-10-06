@@ -16,6 +16,7 @@ import commentsRoutes from './modules/comments/comments.routes';
 import documentsRoutes from './modules/documents/documents.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import dashboardRoutes from './modules/dashboards-reports/dashboard.routes';
+import reportsRoutes from './modules/dashboards-reports/reports.routes';
 import type { ObjectStorage } from './shared/storage/object-storage';
 import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from './modules/documents/upload-config';
 
@@ -58,6 +59,7 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   app.register(documentsRoutes, { storage: options.storage, uploadConfig });
   app.register(notificationsRoutes);
   app.register(dashboardRoutes);
+  app.register(reportsRoutes, { exportRowCap: options.exportRowCap });
 
   // Registered via .register() (rather than app.get(...) directly) so it boots
   // through the same avvio sequence as the other route modules, after
