@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## notifications (Phase 2, sub-project 4)
 
+- [Task 2 — Notification entity, migration, reset helper, fixtures](decisions/notifications/task-02-entity-migration-fixtures.md)
 - [Task 1 — SMTP config, Nodemailer mailer, recording mailer fake](decisions/notifications/task-01-smtp-config-and-mailer.md)
 
 ## documents-comments (Phase 2, sub-project 3)

@@ -14,6 +14,7 @@ import { Case } from '../modules/cases/entities/case.entity';
 import { InformationRequest } from '../modules/information-requests/entities/information-request.entity';
 import { CaseDocument } from '../modules/documents/entities/case-document.entity';
 import { CaseComment } from '../modules/comments/entities/case-comment.entity';
+import { AppNotification } from '../modules/notifications/entities/notification.entity';
 
 export const entities = [
   Role, User, UserRole, RefreshToken, AuditLog,
@@ -22,4 +23,5 @@ export const entities = [
   InformationRequest,
   CaseDocument,
   CaseComment,
+  AppNotification,
 ];
