@@ -80,3 +80,42 @@ export async function dispatchPendingEmails(
   }
   return result;
 }
+
+// src/modules/notifications/email/email-dispatcher.ts — append at the end of the file
+const DEFAULT_WORKER_INTERVAL_MS = 10_000;
+
+export type EmailWorker = { stop(): Promise<void> };
+
+// Polls for due emails. Never overlaps two runs in one process; a failing run is
+// reported through onError and does not stop the worker. Started only by
+// server.ts, never by buildApp, so tests drive dispatchPendingEmails directly.
+export function startEmailWorker(deps: {
+  dataSource: DataSource;
+  mailer: Mailer;
+  intervalMs?: number;
+  onError?: (error: unknown) => void;
+}): EmailWorker {
+  let running = false;
+  let stopped = false;
+  let current: Promise<unknown> = Promise.resolve();
+
+  const timer = setInterval(() => {
+    if (running || stopped) {
+      return;
+    }
+    running = true;
+    current = dispatchPendingEmails(deps.dataSource, deps.mailer)
+      .catch((error) => deps.onError?.(error))
+      .finally(() => {
+        running = false;
+      });
+  }, deps.intervalMs ?? DEFAULT_WORKER_INTERVAL_MS);
+
+  return {
+    async stop() {
+      stopped = true;
+      clearInterval(timer);
+      await current;
+    },
+  };
+}
