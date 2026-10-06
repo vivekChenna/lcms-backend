@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## dashboards-reports (Phase 2, sub-project 6)
 
+- [Task 2 — CSV builder](decisions/dashboards-reports/task-02-csv-builder.md)
 - [Task 1 — Shared case filters and the open filter](decisions/dashboards-reports/task-01-shared-case-filters.md)
 
 ## sla-breach (Phase 2, sub-project 5)
