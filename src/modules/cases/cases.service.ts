@@ -1,4 +1,4 @@
-import type { DataSource, SelectQueryBuilder } from 'typeorm';
+import type { DataSource, EntityManager, SelectQueryBuilder } from 'typeorm';
 import { Case } from './entities/case.entity';
 import { CaseCategory } from '../master-data/entities/case-category.entity';
 import { CaseType } from '../master-data/entities/case-type.entity';
@@ -201,9 +201,15 @@ export function applyCaseFilters(qb: SelectQueryBuilder<Case>, actor: Actor, que
   // "syntax error at or near \".\"" (reproduced while implementing this
   // task: the department-scoped requester filter below is the first one any
   // test exercises that uses a camelCase, quotes-required column name).
+  // Visibility: the same rule as canActorSeeCase below, which must stay in step.
+  if (actor.role === 'viewer') {
+    qb.andWhere('c."isConfidential" = false');
+  }
   if (actor.role === 'requester') {
     qb.andWhere(
-      '(c."departmentId" = :actorDepartmentId OR EXISTS (SELECT 1 FROM information_requests ir WHERE ir."caseId" = c.id AND ir."responderId" = :actorId))',
+      `((c."departmentId" = :actorDepartmentId AND c."isConfidential" = false)
+        OR c."requesterId" = :actorId
+        OR EXISTS (SELECT 1 FROM information_requests ir WHERE ir."caseId" = c.id AND ir."responderId" = :actorId))`,
       { actorDepartmentId: actor.departmentId, actorId: actor.id },
     );
   }
@@ -258,25 +264,40 @@ export async function listCasesForExport(
   return { rows: rows.map((row) => toCaseWithSla(row)), total };
 }
 
+// Single-case counterpart of the visibility block in applyCaseFilters; the two
+// must stay in step. A confidential case is hidden from viewers and from
+// requesters who neither submitted it nor answer an information request on it.
+export async function canActorSeeCase(source: DataSource | EntityManager, actor: Actor, caseRow: Case): Promise<boolean> {
+  if (actor.role === 'viewer') {
+    return !caseRow.isConfidential;
+  }
+  if (actor.role !== 'requester') {
+    return true;
+  }
+  if (caseRow.requesterId === actor.id) {
+    return true;
+  }
+  if (caseRow.departmentId === actor.departmentId && !caseRow.isConfidential) {
+    return true;
+  }
+  // AC-04: a requester also sees a case when an information request on it is
+  // assigned to them as responder.
+  // Imports only the InformationRequest entity (a leaf module with no
+  // dependency back on cases), not its service — the real import-cycle
+  // risk is between the two service files (information-requests.service.ts
+  // imports cases.service.ts), not the entity, so this repository call is
+  // safe and keeps the module graph one-directional at the service level.
+  const count = await source.getRepository(InformationRequest).count({ where: { caseId: caseRow.id, responderId: actor.id } });
+  return count > 0;
+}
+
 export async function getCaseById(dataSource: DataSource, actor: Actor, caseId: string) {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
   if (!caseRow) {
     throw new NotFoundError('Case not found');
   }
-  if (actor.role === 'requester' && caseRow.departmentId !== actor.departmentId) {
-    // AC-04: a requester also sees a case outside their department if an
-    // information request has ever been assigned to them as responder on it.
-    // Imports only the InformationRequest entity (a leaf module with no
-    // dependency back on cases), not its service — the real import-cycle
-    // risk is between the two service files (information-requests.service.ts
-    // imports cases.service.ts), not the entity, so this repository call is
-    // safe and keeps the module graph one-directional at the service level.
-    const count = await dataSource.getRepository(InformationRequest).count({
-      where: { caseId, responderId: actor.id },
-    });
-    if (count === 0) {
-      throw new NotFoundError('Case not found');
-    }
+  if (!(await canActorSeeCase(dataSource, actor, caseRow))) {
+    throw new NotFoundError('Case not found');
   }
   return toCaseWithSla(caseRow);
 }
@@ -302,7 +323,9 @@ export type UpdateCaseInput = {
 export async function updateCase(dataSource: DataSource, actor: Actor, caseId: string, input: UpdateCaseInput): Promise<Case> {
   const repo = dataSource.getRepository(Case);
   const caseRow = await repo.findOne({ where: { id: caseId } });
-  if (!caseRow) {
+  // A case the actor cannot see answers 404, not 403, so the attempt does not
+  // confirm that a hidden confidential case exists.
+  if (!caseRow || !(await canActorSeeCase(dataSource, actor, caseRow))) {
     throw new NotFoundError('Case not found');
   }
   if (caseRow.requesterId !== actor.id && actor.role !== 'admin') {
