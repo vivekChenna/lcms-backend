@@ -6,6 +6,11 @@ import { ForbiddenError, NotFoundError, ValidationError, ConflictError } from '.
 import { logAuditEvent } from '../audit/audit.service';
 import { markCaseWaitingOnInput, markCaseInProgress } from '../cases/cases.workflow.service';
 import { getCaseById, type Actor } from '../cases/cases.service';
+import {
+  notifyInformationRequestAnswered,
+  notifyInformationRequestRaised,
+  notifyInformationRequestReopened,
+} from '../notifications/notifications.events';
 
 export type RaiseInformationRequestInput = {
   subject: string;
@@ -72,6 +77,8 @@ export async function raiseInformationRequest(
       afterValue: { id: infoRequest.id, caseId, referenceNumber: caseRow.referenceNumber, responderId: infoRequest.responderId },
     });
 
+    await notifyInformationRequestRaised(manager, caseRow, infoRequest);
+
     return infoRequest;
   });
 }
@@ -128,6 +135,8 @@ export async function respondToInformationRequest(
       },
     });
 
+    await notifyInformationRequestAnswered(manager, caseRow, infoRequest);
+
     return infoRequest;
   });
 }
@@ -181,6 +190,8 @@ export async function reopenInformationRequest(
       beforeValue: { id: superseded.id, status: 'answered', referenceNumber: caseRow.referenceNumber },
       afterValue: { id: reopened.id, caseId, reopenedFromId: superseded.id, referenceNumber: caseRow.referenceNumber },
     });
+
+    await notifyInformationRequestReopened(manager, caseRow, reopened);
 
     return reopened;
   });

@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## notifications (Phase 2, sub-project 4)
 
+- [Task 6 — Wire information-request actions to notifications](decisions/notifications/task-06-information-request-wiring.md)
 - [Task 5 — Wire case actions to notifications](decisions/notifications/task-05-case-action-wiring.md)
 - [Task 4 — Information-request notification event helpers](decisions/notifications/task-04-information-request-event-helpers.md)
 - [Task 3 — Case lifecycle notification event helpers](decisions/notifications/task-03-case-event-helpers.md)
