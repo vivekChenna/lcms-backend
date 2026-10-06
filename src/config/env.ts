@@ -16,6 +16,12 @@ const envSchema = z.object({
   S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(26_214_400),
   UPLOAD_ALLOWED_EXTENSIONS: z.string().min(1).default('pdf,doc,docx,xls,xlsx,png,jpg,jpeg,txt'),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
+  MAIL_FROM: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

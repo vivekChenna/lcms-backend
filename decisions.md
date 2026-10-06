@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## notifications (Phase 2, sub-project 4)
+
+- [Task 1 — SMTP config, Nodemailer mailer, recording mailer fake](decisions/notifications/task-01-smtp-config-and-mailer.md)
+
 ## documents-comments (Phase 2, sub-project 3)
 
 - [Final review fixes — multipart limits, .env.example, deterministic race test, hardening](decisions/documents-comments/final-review-fixes.md)
