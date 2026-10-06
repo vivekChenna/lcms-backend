@@ -4,7 +4,9 @@ import { requireRole } from '../../shared/rbac';
 import { toCaseWithSla, SlaState } from './sla';
 import { CASE_EXPORT_COLUMNS } from './cases.export';
 import { toCsv, sendCsv, DEFAULT_EXPORT_ROW_CAP } from '../dashboards-reports/csv';
+import type { DataSource } from 'typeorm';
 import type { Case } from './entities/case.entity';
+import { withCaseNames, type CaseNameFields } from './case-names';
 import { acceptAssignment, assignCase, closeCase, rejectAssignment, setEscalation } from './cases.workflow.service';
 import { getCaseById, listCases, listCasesForExport, submitCase, updateCase, updatePriority } from './cases.service';
 import {
@@ -32,7 +34,7 @@ import {
 // same Date -> ISO string conversion at their respective boundaries), and
 // this helper is exported so Tasks 8-14 can reuse it instead of
 // re-deriving the same conversion on every other case route added to this file.
-export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours: number }) {
+export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours: number } & CaseNameFields) {
   return {
     ...caseRow,
     assignmentAcceptedAt: caseRow.assignmentAcceptedAt ? caseRow.assignmentAcceptedAt.toISOString() : null,
@@ -42,6 +44,12 @@ export function serializeCase(caseRow: Case & { slaState: SlaState; caseAgeHours
     createdAt: caseRow.createdAt.toISOString(),
     updatedAt: caseRow.updatedAt.toISOString(),
   };
+}
+
+// Takes an already SLA-decorated row so SLA is never computed twice.
+async function respondCase(dataSource: DataSource, caseRow: Case & { slaState: SlaState; caseAgeHours: number }) {
+  const [named] = await withCaseNames(dataSource, [caseRow]);
+  return serializeCase(named);
 }
 
 export default async function casesRoutes(app: FastifyInstance, opts: { exportRowCap?: number } = {}): Promise<void> {
@@ -63,7 +71,8 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.query);
-    return { ...result, items: result.items.map(serializeCase) };
+    const named = await withCaseNames(app.dataSource, result.items);
+    return { ...result, items: named.map(serializeCase) };
   });
 
   typedApp.get('/cases/export', {
@@ -78,7 +87,8 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.query, cap);
-    return sendCsv(reply, 'cases', toCsv(rows, CASE_EXPORT_COLUMNS), { total, truncated: total > rows.length });
+    const named = await withCaseNames(app.dataSource, rows);
+    return sendCsv(reply, 'cases', toCsv(named, CASE_EXPORT_COLUMNS), { total, truncated: total > rows.length });
   });
 
   typedApp.get('/cases/:id', {
@@ -97,7 +107,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.params.id);
-    return serializeCase(caseRow);
+    return respondCase(app.dataSource, caseRow);
   });
 
   typedApp.patch('/cases/:id', {
@@ -117,7 +127,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.params.id, request.body);
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.post('/cases', {
@@ -136,7 +146,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.body);
-    reply.status(201).send(serializeCase(toCaseWithSla(caseRow)));
+    reply.status(201).send(await respondCase(app.dataSource, toCaseWithSla(caseRow)));
   });
 
   typedApp.patch('/cases/:id/assign', {
@@ -150,7 +160,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
     },
   }, async (request) => {
     const caseRow = await assignCase(app.dataSource, request.user.id, request.params.id, request.body.targetLegalRepId);
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.patch('/cases/:id/accept', {
@@ -168,7 +178,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
     },
   }, async (request) => {
     const caseRow = await acceptAssignment(app.dataSource, request.user.id, request.params.id);
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.patch('/cases/:id/reject', {
@@ -183,7 +193,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
     },
   }, async (request) => {
     const caseRow = await rejectAssignment(app.dataSource, request.user.id, request.params.id, request.body.reason);
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.patch('/cases/:id/escalate', {
@@ -203,7 +213,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       request.body.isEscalated,
       request.body.reason,
     );
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.patch('/cases/:id/close', {
@@ -222,7 +232,7 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       request.params.id,
       { closureSummary: request.body.closureSummary, closureOutcomeId: request.body.closureOutcomeId },
     );
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 
   typedApp.patch('/cases/:id/priority', {
@@ -236,6 +246,6 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
     },
   }, async (request) => {
     const caseRow = await updatePriority(app.dataSource, request.user.id, request.params.id, request.body.priority);
-    return serializeCase(toCaseWithSla(caseRow));
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 }

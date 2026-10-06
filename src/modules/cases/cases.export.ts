@@ -1,7 +1,9 @@
 import type { toCaseWithSla } from './sla';
 import type { CsvColumn } from '../dashboards-reports/csv';
 
-type ExportCase = ReturnType<typeof toCaseWithSla>;
+import type { CaseNameFields } from './case-names';
+
+type ExportCase = ReturnType<typeof toCaseWithSla> & CaseNameFields;
 
 // The description is deliberately not exported.
 export const CASE_EXPORT_COLUMNS: CsvColumn<ExportCase>[] = [
@@ -16,6 +18,13 @@ export const CASE_EXPORT_COLUMNS: CsvColumn<ExportCase>[] = [
   { header: 'departmentId', value: (c) => c.departmentId },
   { header: 'assignedLegalRepId', value: (c) => c.assignedLegalRepId },
   { header: 'requesterId', value: (c) => c.requesterId },
+  { header: 'requesterName', value: (c) => c.requesterName },
+  { header: 'assignedLegalRepName', value: (c) => c.assignedLegalRepName },
+  { header: 'categoryName', value: (c) => c.categoryName },
+  { header: 'caseTypeName', value: (c) => c.caseTypeName },
+  { header: 'departmentName', value: (c) => c.departmentName },
+  { header: 'entityName', value: (c) => c.entityName },
+  { header: 'businessUnitName', value: (c) => c.businessUnitName },
   { header: 'createdAt', value: (c) => c.createdAt },
   { header: 'ackDueAt', value: (c) => c.ackDueAt },
   { header: 'resolutionDueAt', value: (c) => c.resolutionDueAt },
