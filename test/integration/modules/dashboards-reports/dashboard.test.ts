@@ -56,7 +56,7 @@ describe('GET /dashboard', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.tiles).toEqual({ total: 6, open: 4, awaitingAcceptance: 1, waitingOnInput: 1, overdue: 1, onTime: 5, closed: 2 });
+    expect(body.tiles).toEqual({ total: 6, open: 4, awaitingAcceptance: 1, waitingOnInput: 1, overdue: 1, onTime: 5, closed: 2, assignedToMe: 0, unassigned: 1 });
     expect(body.byStatus).toEqual([
       { status: 'Submitted', count: 1 },
       { status: 'Assigned', count: 1 },
@@ -105,14 +105,14 @@ describe('GET /dashboard', () => {
     const res = await app.inject({ method: 'GET', url: '/dashboard', headers: authHeader(app, managerId, 'legal_manager') });
 
     const body = res.json();
-    expect(body.tiles).toEqual({ total: 0, open: 0, awaitingAcceptance: 0, waitingOnInput: 0, overdue: 0, onTime: 0, closed: 0 });
+    expect(body.tiles).toEqual({ total: 0, open: 0, awaitingAcceptance: 0, waitingOnInput: 0, overdue: 0, onTime: 0, closed: 0, assignedToMe: 0, unassigned: 0 });
     expect(body.byStatus).toHaveLength(5);
     expect(body.byStatus.every((row: { count: number }) => row.count === 0)).toBe(true);
     expect(body.managerPanels.openCaseloadByRep).toEqual([]);
     await app.close();
   });
 
-  it('scopes a legal rep to their own cases and adds myAssignedCases', async () => {
+  it('gives a legal rep organisation-wide tiles and adds myAssignedCases (open, oldest first)', async () => {
     const app = buildTestApp(ds);
     await app.ready();
     const world = await seedWorld();
@@ -120,8 +120,8 @@ describe('GET /dashboard', () => {
     const res = await app.inject({ method: 'GET', url: '/dashboard', headers: authHeader(app, world.repId, 'legal_rep') });
 
     const body = res.json();
-    expect(body.tiles).toEqual({ total: 4, open: 2, awaitingAcceptance: 1, waitingOnInput: 0, overdue: 1, onTime: 3, closed: 2 });
-    expect(body.myAssignedCases.map((item: { id: string }) => item.id)).toEqual([world.b.id]);
+    expect(body.tiles).toEqual({ total: 6, open: 4, awaitingAcceptance: 1, waitingOnInput: 1, overdue: 1, onTime: 5, closed: 2, assignedToMe: 2, unassigned: 1 });
+    expect(body.myAssignedCases.map((item: { id: string }) => item.id)).toEqual([world.c.id, world.b.id]);
     expect(body).not.toHaveProperty('managerPanels');
     await app.close();
   });
@@ -169,7 +169,7 @@ describe('GET /dashboard', () => {
     const headers = authHeader(app, managerId, 'legal_manager');
     const dashboard = (await app.inject({ method: 'GET', url: '/dashboard', headers })).json();
 
-    for (const tile of ['total', 'open', 'awaitingAcceptance', 'waitingOnInput', 'overdue', 'closed'] as const) {
+    for (const tile of ['total', 'open', 'awaitingAcceptance', 'waitingOnInput', 'overdue', 'closed', 'unassigned'] as const) {
       const params = new URLSearchParams({ ...dashboard.filters[tile], pageSize: '100' });
       const list = await app.inject({ method: 'GET', url: `/cases?${params.toString()}`, headers });
       expect(list.json().total, tile).toBe(dashboard.tiles[tile]);
@@ -184,11 +184,13 @@ describe('GET /dashboard', () => {
     const headers = authHeader(app, world.repId, 'legal_rep');
     const dashboard = (await app.inject({ method: 'GET', url: '/dashboard', headers })).json();
 
-    for (const tile of ['total', 'open', 'awaitingAcceptance', 'waitingOnInput', 'overdue', 'closed'] as const) {
+    for (const tile of ['total', 'open', 'awaitingAcceptance', 'waitingOnInput', 'overdue', 'closed', 'assignedToMe', 'unassigned'] as const) {
       const params = new URLSearchParams({ ...dashboard.filters[tile], pageSize: '100' });
       const list = await app.inject({ method: 'GET', url: `/cases?${params.toString()}`, headers });
       expect(list.json().total, tile).toBe(dashboard.tiles[tile]);
     }
+    expect(dashboard.filters.total).toEqual({});
+    expect(dashboard.filters.open).toEqual({ open: 'true' });
     await app.close();
   });
 

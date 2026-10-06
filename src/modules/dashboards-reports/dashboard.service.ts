@@ -3,6 +3,7 @@ import { Case, type CaseStatus } from '../cases/entities/case.entity';
 import { User } from '../users/entities/user.entity';
 import { applyCaseFilters, type Actor } from '../cases/cases.service';
 import { toCaseWithSla } from '../cases/sla';
+import { loadUserNames } from '../../shared/name-lookup';
 import type { DashboardResult } from './dashboard.schemas';
 
 const STATUSES: CaseStatus[] = ['Submitted', 'Assigned', 'In Progress', 'Waiting on Input', 'Closed'];
@@ -15,41 +16,20 @@ const TILE_FILTERS: DashboardResult['filters'] = {
   waitingOnInput: { status: 'Waiting on Input' },
   overdue: { open: 'true', slaState: 'breached' },
   closed: { status: 'Closed' },
+  unassigned: { status: 'Submitted' },
 };
 
-// GET /cases does not limit a legal rep to their own cases, so a rep's tile filters
-// must carry the assignee to reproduce the rep's counts (UI-10/11).
-function tileFiltersFor(actor: Actor): DashboardResult['filters'] {
-  if (actor.role !== 'legal_rep') {
-    return TILE_FILTERS;
-  }
-  return Object.fromEntries(
-    Object.entries(TILE_FILTERS).map(([tile, filter]) => [tile, { ...filter, assignedLegalRepId: actor.id }]),
-  );
-}
-
-// Requester scope comes from applyCaseFilters (the same rule as GET /cases);
-// a legal rep is limited to their own cases; manager/admin/viewer see all.
+// Requester and confidential scope come from applyCaseFilters (the same rule as GET /cases);
+// every other role, including a legal rep, sees the whole organisation.
 function scopedQuery(dataSource: DataSource, actor: Actor): SelectQueryBuilder<Case> {
   const qb = dataSource.getRepository(Case).createQueryBuilder('c');
   applyCaseFilters(qb, actor, {});
-  if (actor.role === 'legal_rep') {
-    qb.andWhere('c."assignedLegalRepId" = :repScopeId', { repScopeId: actor.id });
-  }
   return qb;
 }
 
-async function panel(dataSource: DataSource, actor: Actor, status: CaseStatus, onlyAssignedToActor = false) {
-  const base = () => {
-    const qb = scopedQuery(dataSource, actor).andWhere('c."status" = :panelStatus', { panelStatus: status });
-    if (onlyAssignedToActor) {
-      qb.andWhere('c."assignedLegalRepId" = :panelActorId', { panelActorId: actor.id });
-    }
-    return qb;
-  };
-  const count = await base().getCount();
-  const rows = await base().orderBy('c."createdAt"', 'ASC').addOrderBy('c."id"', 'ASC').limit(PANEL_LIMIT).getMany();
-  const items = rows.map((row) => {
+async function toPanelItems(dataSource: DataSource, rows: Case[]) {
+  const names = await loadUserNames(dataSource, rows.map((row) => row.assignedLegalRepId));
+  return rows.map((row) => {
     const withSla = toCaseWithSla(row);
     return {
       id: withSla.id,
@@ -59,9 +39,27 @@ async function panel(dataSource: DataSource, actor: Actor, status: CaseStatus, o
       status: withSla.status,
       resolutionDueAt: withSla.resolutionDueAt.toISOString(),
       slaState: withSla.slaState,
+      assignedLegalRepName: (row.assignedLegalRepId ? names.get(row.assignedLegalRepId)?.fullName : null) ?? null,
     };
   });
-  return { count, items };
+}
+
+async function panel(dataSource: DataSource, actor: Actor, status: CaseStatus) {
+  const base = () => scopedQuery(dataSource, actor).andWhere('c."status" = :panelStatus', { panelStatus: status });
+  const count = await base().getCount();
+  const rows = await base().orderBy('c."createdAt"', 'ASC').addOrderBy('c."id"', 'ASC').limit(PANEL_LIMIT).getMany();
+  return { count, items: await toPanelItems(dataSource, rows) };
+}
+
+async function assignedOpenPanel(dataSource: DataSource, actor: Actor) {
+  const rows = await scopedQuery(dataSource, actor)
+    .andWhere('c."assignedLegalRepId" = :me', { me: actor.id })
+    .andWhere(`c."status" != 'Closed'`)
+    .orderBy('c."createdAt"', 'ASC')
+    .addOrderBy('c."id"', 'ASC')
+    .limit(PANEL_LIMIT)
+    .getMany();
+  return toPanelItems(dataSource, rows);
 }
 
 export async function getDashboard(dataSource: DataSource, actor: Actor): Promise<DashboardResult> {
@@ -72,6 +70,9 @@ export async function getDashboard(dataSource: DataSource, actor: Actor): Promis
     .addSelect(`COUNT(*) FILTER (WHERE c."status" = 'Waiting on Input')`, 'waitingOnInput')
     .addSelect(`COUNT(*) FILTER (WHERE c."status" != 'Closed' AND c."resolutionDueAt" < now())`, 'overdue')
     .addSelect(`COUNT(*) FILTER (WHERE c."status" = 'Closed')`, 'closed')
+    .addSelect(`COUNT(*) FILTER (WHERE c."status" != 'Closed' AND c."assignedLegalRepId" = :tileActorId)`, 'assignedToMe')
+    .addSelect(`COUNT(*) FILTER (WHERE c."status" = 'Submitted')`, 'unassigned')
+    .setParameter('tileActorId', actor.id)
     .getRawOne<Record<string, string>>();
   const total = Number(tileRow?.total ?? 0);
   const overdue = Number(tileRow?.overdue ?? 0);
@@ -95,13 +96,15 @@ export async function getDashboard(dataSource: DataSource, actor: Actor): Promis
       overdue,
       onTime: total - overdue,
       closed: Number(tileRow?.closed ?? 0),
+      assignedToMe: Number(tileRow?.assignedToMe ?? 0),
+      unassigned: Number(tileRow?.unassigned ?? 0),
     },
-    filters: tileFiltersFor(actor),
+    filters: { ...TILE_FILTERS, assignedToMe: { open: 'true', assignedLegalRepId: actor.id } },
     byStatus,
   };
 
   if (actor.role === 'legal_rep') {
-    result.myAssignedCases = (await panel(dataSource, actor, 'Assigned', true)).items;
+    result.myAssignedCases = await assignedOpenPanel(dataSource, actor);
   }
 
   if (actor.role === 'legal_manager' || actor.role === 'admin') {

@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## frontend-integration (readiness for the React frontend)
 
+- [Task 7 � Dashboard changes](decisions/frontend-integration/task-07-dashboard-changes.md)
 - [Task 6 — Confidential case visibility](decisions/frontend-integration/task-06-confidential-visibility.md)
 - [Task 5 — Optional intake fields and confidential flag on cases](decisions/frontend-integration/task-05-intake-fields.md)
 - [Task 4 — Names on comments, requests, documents, notifications and audit rows; audit date filter](decisions/frontend-integration/task-04-names-and-audit-dates.md)

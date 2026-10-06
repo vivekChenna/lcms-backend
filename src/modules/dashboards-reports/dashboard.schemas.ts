@@ -9,6 +9,7 @@ export const panelItemSchema = z.object({
   status: z.enum(CASE_STATUSES),
   resolutionDueAt: z.string(),
   slaState: z.enum(SLA_STATES),
+  assignedLegalRepName: z.string().nullable(),
 });
 
 const countSchema = z.number();
@@ -22,6 +23,8 @@ export const dashboardResponseSchema = z.object({
     overdue: countSchema,
     onTime: countSchema,
     closed: countSchema,
+    assignedToMe: countSchema,
+    unassigned: countSchema,
   }),
   filters: z.record(z.string(), z.record(z.string(), z.string())),
   byStatus: z.array(z.object({ status: z.enum(CASE_STATUSES), count: countSchema })),
