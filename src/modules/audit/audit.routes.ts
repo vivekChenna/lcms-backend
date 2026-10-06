@@ -1,11 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { requireRole } from '../../shared/rbac';
-import { paginationToSkipTake, buildPaginatedResponse } from '../../shared/pagination';
+import { paginationToSkipTake, buildPaginatedResponse, paginationQuerySchema } from '../../shared/pagination';
 import { AuditLog } from './entities/audit-log.entity';
 import { toCsv, sendCsv, DEFAULT_EXPORT_ROW_CAP, type CsvColumn } from '../dashboards-reports/csv';
-import { auditQuerySchema, auditExportQuerySchema, auditListResponseSchema } from './audit.schemas';
+import { auditQuerySchema, auditExportQuerySchema, auditListResponseSchema, dateOrder, dateOrderMessage } from './audit.schemas';
 import { serializeAuditRows, type AuditRowResponse } from './audit.serialize';
+import { listCaseAudit } from './case-audit.service';
+import { caseIdParamsSchema } from '../cases/cases.schemas';
 
 export default async function auditRoutes(app: FastifyInstance, opts: { exportRowCap?: number } = {}): Promise<void> {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
@@ -31,6 +34,23 @@ export default async function auditRoutes(app: FastifyInstance, opts: { exportRo
     const [rows, total] = await filteredQuery(query).orderBy('a."createdAt"', 'DESC').skip(skip).take(take).getManyAndCount();
     return buildPaginatedResponse(await serializeAuditRows(app.dataSource, rows), total, query);
   });
+
+  typedApp.get('/cases/:id/audit', {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ['Audit'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      querystring: paginationQuerySchema
+        .extend({ createdFrom: z.coerce.date().optional(), createdTo: z.coerce.date().optional() })
+        .refine(dateOrder, dateOrderMessage),
+      response: { 200: auditListResponseSchema },
+    },
+  }, async (request) =>
+    listCaseAudit(app.dataSource, {
+      id: request.user.id, role: request.user.role, departmentId: request.user.departmentId,
+      entityId: request.user.entityId, businessUnitId: request.user.businessUnitId,
+    }, request.params.id, request.query));
 
   const AUDIT_EXPORT_COLUMNS: CsvColumn<AuditRowResponse>[] = [
     { header: 'id', value: (row) => row.id },

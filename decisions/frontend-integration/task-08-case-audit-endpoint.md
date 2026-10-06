@@ -1,0 +1,7 @@
+# Task 8 — Case audit endpoint
+
+**Date:** 2026-10-09
+
+**What:** New `GET /cases/:id/audit` (any authenticated role) returns the audit rows of one case, newest first, paginated, with the optional `createdFrom`/`createdTo` window and the same row shape as `GET /audit` (actor name and role, case reference, ISO dates). The service `listCaseAudit` in `src/modules/audit/case-audit.service.ts` first calls `getCaseById`, so a case the caller cannot see (unknown, other department, or confidential and hidden) answers 404. For requesters and viewers the query drops every `case.rejected` row and every row whose `afterValue` or `beforeValue` has `isInternal = true`; `total` counts only the rows they can see. The read writes no audit entry.
+
+**Why:** The frontend case page needs a per-case history that is not limited to admin and legal manager. Audit payloads copy the data they describe: internal note text sits in `comment.*` values and the rejection reason sits in `case.rejected`, and neither is otherwise shown to non-legal roles. Filtering in SQL keeps `total` and pagination correct. The `isInternal` check is not limited to `comment.*` actions, so any future event that carries the flag is hidden by default. The other case events were checked and only carry data that requesters and viewers can already read through the case, comment, document and information-request endpoints (status, priority, escalation reason, closure outcome, document filename, information-request responder and response text).
