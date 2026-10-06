@@ -3,8 +3,22 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import type { Actor } from '../cases/cases.service';
 import { DEFAULT_EXPORT_ROW_CAP, sendCsvRows, type CsvColumn } from './csv';
-import { ageingReport, slaComplianceReport, type SlaComplianceRow } from './reports.service';
-import { ageingResponseSchema, reportQuerySchema, slaComplianceResponseSchema } from './reports.schemas';
+import {
+  ageingReport,
+  repWorkloadReport,
+  slaComplianceReport,
+  volumeByCategoryReport,
+  volumeByOrganisationReport,
+  type SlaComplianceRow,
+} from './reports.service';
+import {
+  ageingResponseSchema,
+  repWorkloadResponseSchema,
+  reportQuerySchema,
+  slaComplianceResponseSchema,
+  volumeByCategoryResponseSchema,
+  volumeByOrganisationResponseSchema,
+} from './reports.schemas';
 
 export const REPORT_ROLES = ['admin', 'legal_manager', 'viewer'];
 
@@ -20,6 +34,35 @@ const SLA_COLUMNS: CsvColumn<SlaComplianceRow>[] = [
 const AGEING_COLUMNS: CsvColumn<{ bucket: string; count: number }>[] = [
   { header: 'bucket', value: (row) => row.bucket },
   { header: 'count', value: (row) => row.count },
+];
+
+type VolumeCategoryRow = Awaited<ReturnType<typeof volumeByCategoryReport>>[number];
+const VOLUMECATEGORY_COLUMNS: CsvColumn<VolumeCategoryRow>[] = [
+  { header: 'categoryId', value: (row) => row.categoryId },
+  { header: 'categoryName', value: (row) => row.categoryName },
+  { header: 'caseTypeId', value: (row) => row.caseTypeId },
+  { header: 'caseTypeName', value: (row) => row.caseTypeName },
+  { header: 'count', value: (row) => row.count },
+];
+
+type VolumeOrganisationRow = Awaited<ReturnType<typeof volumeByOrganisationReport>>[number];
+const VOLUMEORGANISATION_COLUMNS: CsvColumn<VolumeOrganisationRow>[] = [
+  { header: 'entityId', value: (row) => row.entityId },
+  { header: 'entityName', value: (row) => row.entityName },
+  { header: 'businessUnitId', value: (row) => row.businessUnitId },
+  { header: 'businessUnitName', value: (row) => row.businessUnitName },
+  { header: 'departmentId', value: (row) => row.departmentId },
+  { header: 'departmentName', value: (row) => row.departmentName },
+  { header: 'count', value: (row) => row.count },
+];
+
+type RepWorkloadRow = Awaited<ReturnType<typeof repWorkloadReport>>[number];
+const REPWORKLOAD_COLUMNS: CsvColumn<RepWorkloadRow>[] = [
+  { header: 'legalRepId', value: (row) => row.legalRepId },
+  { header: 'fullName', value: (row) => row.fullName },
+  { header: 'openCount', value: (row) => row.openCount },
+  { header: 'awaitingAcceptanceCount', value: (row) => row.awaitingAcceptanceCount },
+  { header: 'overdueCount', value: (row) => row.overdueCount },
 ];
 
 export default async function reportsRoutes(app: FastifyInstance, opts: { exportRowCap?: number } = {}): Promise<void> {
@@ -59,5 +102,44 @@ export default async function reportsRoutes(app: FastifyInstance, opts: { export
   }, async (request, reply) => {
     const rows = await ageingReport(app.dataSource, actorOf(request.user), request.query);
     return sendCsvRows(reply, 'ageing', rows, AGEING_COLUMNS, cap);
+  });
+
+  typedApp.get('/reports/volume-by-category', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema, response: { 200: volumeByCategoryResponseSchema } },
+  }, async (request) => volumeByCategoryReport(app.dataSource, actorOf(request.user), request.query));
+
+  typedApp.get('/reports/volume-by-category/export', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema },
+  }, async (request, reply) => {
+    const rows = await volumeByCategoryReport(app.dataSource, actorOf(request.user), request.query);
+    return sendCsvRows(reply, 'volume-by-category', rows, VOLUMECATEGORY_COLUMNS, cap);
+  });
+
+  typedApp.get('/reports/volume-by-organisation', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema, response: { 200: volumeByOrganisationResponseSchema } },
+  }, async (request) => volumeByOrganisationReport(app.dataSource, actorOf(request.user), request.query));
+
+  typedApp.get('/reports/volume-by-organisation/export', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema },
+  }, async (request, reply) => {
+    const rows = await volumeByOrganisationReport(app.dataSource, actorOf(request.user), request.query);
+    return sendCsvRows(reply, 'volume-by-organisation', rows, VOLUMEORGANISATION_COLUMNS, cap);
+  });
+
+  typedApp.get('/reports/rep-workload', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema, response: { 200: repWorkloadResponseSchema } },
+  }, async (request) => repWorkloadReport(app.dataSource, actorOf(request.user), request.query));
+
+  typedApp.get('/reports/rep-workload/export', {
+    preHandler: guard,
+    schema: { ...meta, querystring: reportQuerySchema },
+  }, async (request, reply) => {
+    const rows = await repWorkloadReport(app.dataSource, actorOf(request.user), request.query);
+    return sendCsvRows(reply, 'rep-workload', rows, REPWORKLOAD_COLUMNS, cap);
   });
 }

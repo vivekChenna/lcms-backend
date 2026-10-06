@@ -31,3 +31,29 @@ export const slaComplianceResponseSchema = z.object({
 });
 
 export const ageingResponseSchema = z.array(z.object({ bucket: z.enum(['0-7', '8-30', '31-90', '91+']), count: z.number() }));
+
+export const volumeByCategoryResponseSchema = z.array(
+  z.object({ categoryId: z.string(), categoryName: z.string(), caseTypeId: z.string(), caseTypeName: z.string(), count: z.number() }),
+);
+
+export const volumeByOrganisationResponseSchema = z.array(
+  z.object({
+    entityId: z.string(),
+    entityName: z.string(),
+    businessUnitId: z.string().nullable(),
+    businessUnitName: z.string().nullable(),
+    departmentId: z.string(),
+    departmentName: z.string(),
+    count: z.number(),
+  }),
+);
+
+export const repWorkloadResponseSchema = z.array(
+  z.object({
+    legalRepId: z.string(),
+    fullName: z.string(),
+    openCount: z.number(),
+    awaitingAcceptanceCount: z.number(),
+    overdueCount: z.number(),
+  }),
+);
