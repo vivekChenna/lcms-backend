@@ -6,6 +6,7 @@ import { createS3StorageFromEnv } from './shared/storage/s3-object-storage';
 import { parseUploadConfig } from './modules/documents/upload-config';
 import { createMailerFromEnv } from './modules/notifications/email/nodemailer-mailer';
 import { startEmailWorker } from './modules/notifications/email/email-dispatcher';
+import { startSlaBreachWorker } from './modules/sla/sla-breach-job';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -20,9 +21,14 @@ async function main(): Promise<void> {
     mailer,
     onError: (error) => app.log.error(error, 'email dispatch failed'),
   });
+  const slaBreachWorker = startSlaBreachWorker({
+    dataSource: AppDataSource,
+    onError: (error) => app.log.error(error, 'sla breach scan failed'),
+  });
 
   const shutdown = async (): Promise<void> => {
     await emailWorker.stop();
+    await slaBreachWorker.stop();
     await app.close();
     await AppDataSource.destroy();
     process.exit(0);

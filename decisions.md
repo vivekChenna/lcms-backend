@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## sla-breach (Phase 2, sub-project 5)
+
+- [Task 1 — SLA breach scan job](decisions/sla-breach/task-01-sla-breach-job.md)
+
 ## notifications (Phase 2, sub-project 4)
 
 - [Task 9 — Email worker and server wiring](decisions/notifications/task-09-email-worker-and-server.md)

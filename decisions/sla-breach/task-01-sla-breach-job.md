@@ -1,0 +1,7 @@
+# Task 1 — SLA breach scan job
+
+**Date:** 2026-10-06
+
+**What:** Added `src/modules/sla/sla-breach-job.ts` with `scanForSlaBreaches` and `startSlaBreachWorker`, and started the worker from `src/server.ts` (stopped in the shutdown handler before `app.close`). Each scan loops up to a batch size; every iteration is its own short transaction that claims one open case whose `resolutionDueAt` has passed and whose `slaBreachNotifiedAt` is null (`FOR UPDATE SKIP LOCKED`, oldest due first), notifies the active legal managers through `notifySlaBreached`, and stamps `slaBreachNotifiedAt` with the database clock. The worker runs every 10 minutes by default, never overlaps runs, reports failures to `onError`, and `stop()` awaits the in-flight run.
+
+**Why:** Parent spec §6 NT-03 requires an idempotent, exactly-once breach notification. Stamping `slaBreachNotifiedAt` in the same transaction as the notifications gives that guarantee, including across concurrent scanners (skip-locked). A plain `setInterval` worker is used instead of node-cron to match the email worker and avoid a new dependency. Assumptions: any non-Closed status is open (no clock pause while Waiting on Input); only the resolution deadline matters (ack deadline ignored); only legal managers are notified; a case with no active managers is still stamped; cases closed after breaching but before a scan are not notified retroactively; no audit entry is written because the job has no actor; no schema change or migration was needed.
