@@ -38,3 +38,8 @@ export class PayloadTooLargeError extends AppError {
   readonly statusCode = 413;
   readonly code = 'PAYLOAD_TOO_LARGE';
 }
+
+export class ServiceUnavailableError extends AppError {
+  readonly statusCode = 503;
+  readonly code = 'SERVICE_UNAVAILABLE';
+}

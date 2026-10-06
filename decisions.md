@@ -4,6 +4,10 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ---
 
+## startup (operational fixes)
+
+- [Task 1 — Do not crash on missing S3 or SMTP configuration](decisions/startup/task-01-optional-storage-and-email.md)
+
 ## dashboards-reports (Phase 2, sub-project 6)
 
 - [Task 7 — Final review fixes](decisions/dashboards-reports/task-07-final-review-fixes.md)
