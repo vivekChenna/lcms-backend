@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## notifications (Phase 2, sub-project 4)
 
+- [Task 8 — Durable email dispatcher with retries and backoff](decisions/notifications/task-08-email-dispatcher.md)
 - [Task 7 � In-app notification API](decisions/notifications/task-07-in-app-api.md)
 - [Task 6 — Wire information-request actions to notifications](decisions/notifications/task-06-information-request-wiring.md)
 - [Task 5 — Wire case actions to notifications](decisions/notifications/task-05-case-action-wiring.md)
