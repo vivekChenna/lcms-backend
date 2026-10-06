@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { loadEnv } from '../../config/env';
 import { REFRESH_COOKIE } from '../../config/security';
@@ -7,6 +7,12 @@ import { login, refreshSession, logout, changePassword, loadProfile } from './au
 import { loginBodySchema, refreshBodySchema, sessionResponseSchema, changePasswordBodySchema, profileSchema } from './auth.schemas';
 import { setSessionCookies, clearSessionCookies } from './auth-cookies';
 import { loginRateLimit } from '../../plugins/rate-limit';
+
+// The CSRF plugin skips its Origin check for any request carrying an
+// Authorization header, so such a request must never be served from the cookie.
+function refreshCookie(request: FastifyRequest): string | undefined {
+  return request.headers.authorization === undefined ? request.cookies?.[REFRESH_COOKIE] : undefined;
+}
 
 export default async function authRoutes(app: FastifyInstance): Promise<void> {
   const env = loadEnv();
@@ -26,7 +32,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
   typedApp.post('/auth/refresh', {
     schema: { tags: ['Auth'], body: refreshBodySchema, response: { 200: sessionResponseSchema } },
   }, async (request, reply) => {
-    const presented = request.body?.refreshToken ?? request.cookies?.[REFRESH_COOKIE];
+    const presented = request.body?.refreshToken ?? refreshCookie(request);
     if (!presented) {
       throw new UnauthorizedError('Missing refresh token');
     }
@@ -39,7 +45,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
   typedApp.post('/auth/logout', {
     schema: { tags: ['Auth'], body: refreshBodySchema },
   }, async (request, reply) => {
-    const presented = request.body?.refreshToken ?? request.cookies?.[REFRESH_COOKIE];
+    const presented = request.body?.refreshToken ?? refreshCookie(request);
     if (presented) {
       await logout(app.dataSource, presented);
     }

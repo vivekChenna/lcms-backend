@@ -170,6 +170,7 @@ describe('cookie authentication', () => {
     expect(out.statusCode).toBe(204);
     expect(setCookieLine(out, 'lcms_access')).toMatch(/(Max-Age=0|Expires=Thu, 01 Jan 1970)/i);
     expect(setCookieLine(out, 'lcms_refresh')).toMatch(/(Max-Age=0|Expires=Thu, 01 Jan 1970)/i);
+    expect(setCookieLine(out, 'lcms_refresh')).toMatch(/Path=\/auth/);
     expect(replay.statusCode).toBe(401);
     expect(again.statusCode).toBe(204);
     await app.close();
@@ -204,6 +205,34 @@ describe('cookie authentication', () => {
     expect(basic.statusCode).toBe(401);
     expect(blank.statusCode).toBe(401);
     expect(control.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it('refresh ignores the refresh cookie when any Authorization header is present and does not rotate it', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    await seedUserWithRole(ds, 'requester', { email: 'rh@algihaz.local' });
+    const jar = cookiesFrom(await loginAs(app, 'rh@algihaz.local'));
+
+    const attack = await app.inject({ method: 'POST', url: '/auth/refresh', headers: { authorization: 'Basic abc', cookie: `lcms_refresh=${jar.lcms_refresh}`, origin: 'http://evil.example' }, payload: {} });
+    const legit = await app.inject({ method: 'POST', url: '/auth/refresh', headers: { cookie: `lcms_refresh=${jar.lcms_refresh}`, origin: ORIGIN }, payload: {} });
+
+    expect(attack.statusCode).toBe(401);
+    expect(setCookieLine(attack, 'lcms_refresh')).toBe('');
+    expect(legit.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('logout ignores the refresh cookie when any Authorization header is present and does not revoke it', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    await seedUserWithRole(ds, 'requester', { email: 'lh@algihaz.local' });
+    const jar = cookiesFrom(await loginAs(app, 'lh@algihaz.local'));
+
+    await app.inject({ method: 'POST', url: '/auth/logout', headers: { authorization: 'Basic abc', cookie: `lcms_refresh=${jar.lcms_refresh}`, origin: 'http://evil.example' }, payload: {} });
+    const legit = await app.inject({ method: 'POST', url: '/auth/refresh', headers: { cookie: `lcms_refresh=${jar.lcms_refresh}`, origin: ORIGIN }, payload: {} });
+
+    expect(legit.statusCode).toBe(200);
     await app.close();
   });
 });
