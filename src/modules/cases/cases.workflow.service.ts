@@ -6,6 +6,12 @@ import { logAuditEvent } from '../audit/audit.service';
 import { assertValidLegalRep } from '../master-data/routing-rules.service';
 import { ClosureOutcome } from '../master-data/entities/closure-outcome.entity';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
+import {
+  notifyAssignmentRejected,
+  notifyCaseAccepted,
+  notifyCaseAssigned,
+  notifyCaseClosed,
+} from '../notifications/notifications.events';
 
 export async function loadCaseOrThrow(dataSource: DataSource | EntityManager, caseId: string): Promise<Case> {
   const caseRow = await dataSource.getRepository(Case).findOne({ where: { id: caseId } });
@@ -45,6 +51,7 @@ export async function assignCase(
       referenceNumber: caseRow.referenceNumber,
     },
   });
+  await notifyCaseAssigned(dataSource, caseRow);
   return caseRow;
 }
 
@@ -66,6 +73,7 @@ export async function acceptAssignment(dataSource: DataSource, actorId: string, 
     beforeValue: before,
     afterValue: { id: caseRow.id, status: caseRow.status, referenceNumber: caseRow.referenceNumber },
   });
+  await notifyCaseAccepted(dataSource, caseRow);
   return caseRow;
 }
 
@@ -88,6 +96,7 @@ export async function rejectAssignment(dataSource: DataSource, actorId: string, 
     beforeValue: before,
     afterValue: { id: caseRow.id, status: caseRow.status, reason, referenceNumber: caseRow.referenceNumber },
   });
+  await notifyAssignmentRejected(dataSource, caseRow, reason);
   return caseRow;
 }
 
@@ -165,6 +174,7 @@ export async function closeCase(
         referenceNumber: caseRow.referenceNumber,
       },
     });
+    await notifyCaseClosed(manager, caseRow);
     return caseRow;
   });
 }

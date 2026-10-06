@@ -11,6 +11,7 @@ import { computeDueDates, toCaseWithSla } from './sla';
 import { generateReferenceNumber } from './reference-number';
 import { evaluateAutoRouting } from './auto-routing';
 import { assignCase } from './cases.workflow.service';
+import { notifyCaseRegistered } from '../notifications/notifications.events';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
 
@@ -127,6 +128,7 @@ export async function submitCase(dataSource: DataSource, actor: Actor, input: Cr
     action: 'case.submitted',
     afterValue: { id: caseRow.id, referenceNumber: caseRow.referenceNumber, status: caseRow.status },
   });
+  await notifyCaseRegistered(dataSource, caseRow);
 
   const match = await evaluateAutoRouting(dataSource, {
     categoryId: caseRow.categoryId,
