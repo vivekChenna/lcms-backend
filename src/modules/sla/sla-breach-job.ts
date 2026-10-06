@@ -1,4 +1,3 @@
-// src/modules/sla/sla-breach-job.ts
 import type { DataSource } from 'typeorm';
 import { Case } from '../cases/entities/case.entity';
 import { notifySlaBreached } from '../notifications/notifications.events';
