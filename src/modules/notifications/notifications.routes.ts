@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { AppNotification } from './entities/notification.entity';
 import { loadCaseReferences } from '../../shared/name-lookup';
-import { listNotifications, markNotificationRead } from './notifications.service';
+import { listNotifications, markAllNotificationsRead, markNotificationRead } from './notifications.service';
 import {
+  markAllReadResponseSchema,
   notificationIdParamsSchema,
   notificationListResponseSchema,
   notificationListQuerySchema,
@@ -54,4 +55,9 @@ export default async function notificationsRoutes(app: FastifyInstance): Promise
     const references = await loadCaseReferences(app.dataSource, [notification.relatedCaseId]);
     return serializeNotification(notification, references);
   });
+
+  typedApp.patch('/notifications/read-all', {
+    preHandler: [app.authenticate],
+    schema: { tags: ['Notifications'], security: [{ bearerAuth: [] }], response: { 200: markAllReadResponseSchema } },
+  }, async (request) => ({ updated: await markAllNotificationsRead(app.dataSource, request.user.id) }));
 }

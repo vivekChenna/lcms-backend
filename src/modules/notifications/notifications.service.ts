@@ -30,3 +30,10 @@ export async function markNotificationRead(dataSource: DataSource, userId: strin
   }
   return notification;
 }
+
+export async function markAllNotificationsRead(dataSource: DataSource, userId: string): Promise<number> {
+  const result = await dataSource
+    .getRepository(AppNotification)
+    .update({ userId, isRead: false }, { isRead: true, readAt: () => 'now()' });
+  return result.affected ?? 0;
+}

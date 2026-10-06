@@ -29,3 +29,5 @@ export const notificationListResponseSchema = z.object({
   pageSize: z.number(),
   unreadCount: z.number(),
 });
+
+export const markAllReadResponseSchema = z.object({ updated: z.number() });

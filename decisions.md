@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## frontend-integration (readiness for the React frontend)
 
+- [Task 9 — Mark all notifications read](decisions/frontend-integration/task-09-mark-all-read.md)
 - [Task 8 — Case audit endpoint](decisions/frontend-integration/task-08-case-audit-endpoint.md)
 - [Task 7 — Dashboard changes](decisions/frontend-integration/task-07-dashboard-changes.md)
 - [Task 6 — Confidential case visibility](decisions/frontend-integration/task-06-confidential-visibility.md)
