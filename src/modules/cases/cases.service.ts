@@ -1,4 +1,4 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, SelectQueryBuilder } from 'typeorm';
 import { Case } from './entities/case.entity';
 import { CaseCategory } from '../master-data/entities/case-category.entity';
 import { CaseType } from '../master-data/entities/case-type.entity';
@@ -145,7 +145,7 @@ export async function submitCase(dataSource: DataSource, actor: Actor, input: Cr
   return caseRow;
 }
 
-export type CaseListQuery = PaginationQuery & {
+export type CaseFilterQuery = {
   status?: string;
   priority?: string;
   categoryId?: string;
@@ -156,21 +156,22 @@ export type CaseListQuery = PaginationQuery & {
   assignedLegalRepId?: string;
   search?: string;
   slaState?: 'on_track' | 'at_risk' | 'breached' | 'met';
+  open?: boolean;
 };
 
-const SLA_STATE_CONDITIONS: Record<string, string> = {
+export type CaseListQuery = PaginationQuery & CaseFilterQuery;
+
+export const SLA_STATE_CONDITIONS: Record<string, string> = {
   met: `"status" = 'Closed' AND "closedAt" <= "resolutionDueAt"`,
   breached: `(("status" != 'Closed' AND "resolutionDueAt" < NOW()) OR ("status" = 'Closed' AND "closedAt" > "resolutionDueAt"))`,
   at_risk: `"status" != 'Closed' AND "resolutionDueAt" >= NOW() AND ("resolutionDueAt" - NOW()) <= ("resolutionDueAt" - "createdAt") * 0.2`,
   on_track: `"status" != 'Closed' AND ("resolutionDueAt" - NOW()) > ("resolutionDueAt" - "createdAt") * 0.2`,
 };
 
-export async function listCases(
-  dataSource: DataSource,
-  actor: Actor,
-  query: CaseListQuery,
-): Promise<{ items: ReturnType<typeof toCaseWithSla>[]; total: number; page: number; pageSize: number }> {
-  const { skip, take } = paginationToSkipTake(query);
+// Shared by the case list, the case export, the dashboard and the reports so a
+// tile, a chart bar, a CSV row and a list row can never disagree. The query
+// builder must use the alias "c".
+export function applyCaseFilters(qb: SelectQueryBuilder<Case>, actor: Actor, query: CaseFilterQuery): void {
   // Alias is "c", not "case": "case" is a fully reserved PostgreSQL keyword
   // (the CASE WHEN expression), and TypeORM only auto-quotes an
   // alias.property reference when the property itself is left bare (e.g.
@@ -180,8 +181,6 @@ export async function listCases(
   // "syntax error at or near \".\"" (reproduced while implementing this
   // task: the department-scoped requester filter below is the first one any
   // test exercises that uses a camelCase, quotes-required column name).
-  const qb = dataSource.getRepository(Case).createQueryBuilder('c');
-
   if (actor.role === 'requester') {
     qb.andWhere(
       '(c."departmentId" = :actorDepartmentId OR EXISTS (SELECT 1 FROM information_requests ir WHERE ir."caseId" = c.id AND ir."responderId" = :actorId))',
@@ -205,6 +204,20 @@ export async function listCases(
   if (query.slaState) {
     qb.andWhere(SLA_STATE_CONDITIONS[query.slaState]);
   }
+  if (query.open) {
+    qb.andWhere(`c."status" != 'Closed'`);
+  }
+}
+
+export async function listCases(
+  dataSource: DataSource,
+  actor: Actor,
+  query: CaseListQuery,
+): Promise<{ items: ReturnType<typeof toCaseWithSla>[]; total: number; page: number; pageSize: number }> {
+  const { skip, take } = paginationToSkipTake(query);
+  const qb = dataSource.getRepository(Case).createQueryBuilder('c');
+
+  applyCaseFilters(qb, actor, query);
 
   const total = await qb.getCount();
   const rows = await qb.orderBy('c."createdAt"', 'DESC').skip(skip).take(take).getMany();

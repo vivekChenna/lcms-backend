@@ -71,6 +71,7 @@ export const caseListQuerySchema = paginationQuerySchema.extend({
   assignedLegalRepId: z.string().uuid().optional(),
   search: z.string().optional(),
   slaState: z.enum(SLA_STATES).optional(),
+  open: z.literal('true').transform(() => true).optional(),
 });
 
 export const caseResponseSchema = z.object({
