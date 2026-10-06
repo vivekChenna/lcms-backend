@@ -15,6 +15,8 @@ export const commentResponseSchema = z.object({
   id: z.string(),
   caseId: z.string(),
   authorId: z.string(),
+  authorName: z.string().nullable(),
+  authorRole: z.string().nullable(),
   body: z.string(),
   isInternal: z.boolean(),
   createdAt: z.string(),

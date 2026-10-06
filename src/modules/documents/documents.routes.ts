@@ -26,13 +26,14 @@ import {
 import { contentDispositionHeader } from './content-disposition';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
 import { informationRequestIdParamsSchema } from '../information-requests/information-requests.schemas';
+import { loadUserNames, type UserName } from '../../shared/name-lookup';
 import { ValidationError } from '../../shared/errors';
 import type { ObjectStorage } from '../../shared/storage/object-storage';
 import type { UploadConfig } from './upload-config';
 
 export type DocumentsRoutesOptions = { storage: ObjectStorage; uploadConfig: UploadConfig };
 
-export function serializeDocument(row: CaseDocument) {
+export function serializeDocument(row: CaseDocument, names: Map<string, UserName>) {
   return {
     id: row.id,
     caseId: row.caseId,
@@ -45,6 +46,7 @@ export function serializeDocument(row: CaseDocument) {
     rootDocumentId: row.rootDocumentId,
     previousVersionId: row.previousVersionId,
     uploaderId: row.uploaderId,
+    uploadedByName: names.get(row.uploaderId)?.fullName ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -79,7 +81,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
       informationRequestId: request.query.informationRequestId,
       includeHistory: request.query.includeHistory,
     });
-    return rows.map(serializeDocument);
+    const names = await loadUserNames(app.dataSource, rows.map((row) => row.uploaderId));
+    return rows.map((row) => serializeDocument(row, names));
   });
 
   typedApp.get('/documents/:id/versions', {
@@ -92,7 +95,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
     },
   }, async (request) => {
     const rows = await listDocumentVersions(app.dataSource, request.user, request.params.id);
-    return rows.map(serializeDocument);
+    const names = await loadUserNames(app.dataSource, rows.map((row) => row.uploaderId));
+    return rows.map((row) => serializeDocument(row, names));
   });
 
   typedApp.get('/documents/:id/download', {
@@ -128,7 +132,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
   }, async (request, reply) => {
     const file = await readUpload(request);
     const document = await uploadCaseDocument(deps, request.user, request.params.id, request.query.category, file);
-    reply.status(201).send(serializeDocument(document));
+    const names = await loadUserNames(app.dataSource, [document.uploaderId]);
+    reply.status(201).send(serializeDocument(document, names));
   });
 
   typedApp.post('/documents/:id/versions', {
@@ -144,7 +149,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
   }, async (request, reply) => {
     const file = await readUpload(request);
     const document = await uploadNewVersion(deps, request.user, request.params.id, request.query.category, file);
-    reply.status(201).send(serializeDocument(document));
+    const names = await loadUserNames(app.dataSource, [document.uploaderId]);
+    reply.status(201).send(serializeDocument(document, names));
   });
 
   typedApp.post('/information-requests/:id/attachments', {
@@ -160,7 +166,8 @@ export default async function documentsRoutes(app: FastifyInstance, options: Doc
   }, async (request, reply) => {
     const file = await readUpload(request);
     const document = await uploadInformationRequestAttachment(deps, request.user, request.params.id, request.query.category, file);
-    reply.status(201).send(serializeDocument(document));
+    const names = await loadUserNames(app.dataSource, [document.uploaderId]);
+    reply.status(201).send(serializeDocument(document, names));
   });
 
   typedApp.delete('/documents/:id', {

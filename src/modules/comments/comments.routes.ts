@@ -4,12 +4,16 @@ import type { CaseComment } from './entities/case-comment.entity';
 import { createComment, deleteComment, editComment, listComments } from './comments.service';
 import { commentIdParamsSchema, commentListResponseSchema, commentResponseSchema, createCommentBodySchema, editCommentBodySchema } from './comments.schemas';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
+import { loadUserNames, type UserName } from '../../shared/name-lookup';
 
-export function serializeComment(row: CaseComment) {
+export function serializeComment(row: CaseComment, names: Map<string, UserName>) {
+  const author = names.get(row.authorId);
   return {
     id: row.id,
     caseId: row.caseId,
     authorId: row.authorId,
+    authorName: author?.fullName ?? null,
+    authorRole: author?.role ?? null,
     body: row.body,
     isInternal: row.isInternal,
     createdAt: row.createdAt.toISOString(),
@@ -30,7 +34,8 @@ export default async function commentsRoutes(app: FastifyInstance): Promise<void
     },
   }, async (request) => {
     const rows = await listComments(app.dataSource, request.user, request.params.id);
-    return rows.map(serializeComment);
+    const names = await loadUserNames(app.dataSource, rows.map((row) => row.authorId));
+    return rows.map((row) => serializeComment(row, names));
   });
 
   typedApp.post('/cases/:id/comments', {
@@ -44,7 +49,8 @@ export default async function commentsRoutes(app: FastifyInstance): Promise<void
     },
   }, async (request, reply) => {
     const comment = await createComment(app.dataSource, request.user, request.params.id, request.body);
-    reply.status(201).send(serializeComment(comment));
+    const names = await loadUserNames(app.dataSource, [comment.authorId]);
+    reply.status(201).send(serializeComment(comment, names));
   });
 
   typedApp.patch('/comments/:id', {
@@ -58,7 +64,8 @@ export default async function commentsRoutes(app: FastifyInstance): Promise<void
     },
   }, async (request) => {
     const comment = await editComment(app.dataSource, request.user, request.params.id, request.body.body);
-    return serializeComment(comment);
+    const names = await loadUserNames(app.dataSource, [comment.authorId]);
+    return serializeComment(comment, names);
   });
 
   typedApp.delete('/comments/:id', {

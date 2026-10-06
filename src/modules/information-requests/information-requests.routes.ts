@@ -12,19 +12,27 @@ import {
   informationRequestListResponseSchema,
 } from './information-requests.schemas';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
+import { loadUserNames, type NameSource, type UserName } from '../../shared/name-lookup';
 
 // Same Date -> ISO-string boundary conversion case core's serializeCase does,
 // for the same reason: fastify-type-provider-zod validates-then-serializes
 // against informationRequestResponseSchema's z.string() timestamp fields, and
 // does not implicitly coerce a Date. Exported so every other route in this
 // file reuses it instead of re-deriving the conversion.
-export function serializeInformationRequest(row: InformationRequest) {
+export function serializeInformationRequest(row: InformationRequest, names: Map<string, UserName>) {
   return {
     ...row,
+    raisedByName: names.get(row.raisedById)?.fullName ?? null,
+    raisedByRole: names.get(row.raisedById)?.role ?? null,
+    responderName: names.get(row.responderId)?.fullName ?? null,
     dueDate: row.dueDate ? row.dueDate.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function loadRequestNames(source: NameSource, rows: InformationRequest[]) {
+  return loadUserNames(source, rows.flatMap((row) => [row.raisedById, row.responderId]));
 }
 
 export default async function informationRequestsRoutes(app: FastifyInstance): Promise<void> {
@@ -46,7 +54,8 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
       entityId: request.user.entityId,
       businessUnitId: request.user.businessUnitId,
     }, request.params.id);
-    return rows.map(serializeInformationRequest);
+    const names = await loadRequestNames(app.dataSource, rows);
+    return rows.map((row) => serializeInformationRequest(row, names));
   });
 
   typedApp.post('/cases/:id/information-requests', {
@@ -60,7 +69,8 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
     },
   }, async (request, reply) => {
     const infoRequest = await raiseInformationRequest(app.dataSource, request.user.id, request.params.id, request.body);
-    reply.status(201).send(serializeInformationRequest(infoRequest));
+    const names = await loadRequestNames(app.dataSource, [infoRequest]);
+    reply.status(201).send(serializeInformationRequest(infoRequest, names));
   });
 
   typedApp.post('/information-requests/:id/respond', {
@@ -74,7 +84,8 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
     },
   }, async (request) => {
     const infoRequest = await respondToInformationRequest(app.dataSource, request.user.id, request.params.id, request.body.responseText);
-    return serializeInformationRequest(infoRequest);
+    const names = await loadRequestNames(app.dataSource, [infoRequest]);
+    return serializeInformationRequest(infoRequest, names);
   });
 
   typedApp.post('/information-requests/:id/reopen', {
@@ -88,6 +99,7 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
     },
   }, async (request) => {
     const infoRequest = await reopenInformationRequest(app.dataSource, request.user.id, request.params.id, request.body.comment);
-    return serializeInformationRequest(infoRequest);
+    const names = await loadRequestNames(app.dataSource, [infoRequest]);
+    return serializeInformationRequest(infoRequest, names);
   });
 }

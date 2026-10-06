@@ -16,6 +16,7 @@ export const notificationResponseSchema = z.object({
   title: z.string(),
   body: z.string(),
   relatedCaseId: z.string().nullable(),
+  relatedCaseReference: z.string().nullable(),
   isRead: z.boolean(),
   readAt: z.string().nullable(),
   createdAt: z.string(),
