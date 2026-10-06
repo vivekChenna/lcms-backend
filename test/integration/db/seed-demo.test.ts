@@ -41,9 +41,18 @@ describe('seedDemo', () => {
     const cases = await ds.getRepository(Case).find();
     expect(cases.length).toBeGreaterThanOrEqual(8);
     expect(first.caseIds).toHaveLength(cases.length);
-    expect(new Set(cases.map((c) => c.status))).toEqual(
-      new Set(['Submitted', 'Assigned', 'In Progress', 'Waiting on Input', 'Closed']),
-    );
+    expect(Object.fromEntries(cases.map((c) => [c.title, c.status]))).toEqual({
+      '[Demo] Vendor payment dispute (Submitted)': 'Submitted',
+      '[Demo] Lease renewal advice (Assigned)': 'Assigned',
+      '[Demo] Employee contract query (In Progress)': 'In Progress',
+      '[Demo] Licence document request (Waiting on Input)': 'Waiting on Input',
+      '[Demo] Regulatory notice response (Escalated)': 'In Progress',
+      '[Demo] Supplier agreement review (Closed)': 'Closed',
+      '[Demo] Confidential HR matter (Submitted)': 'Submitted',
+      '[Demo] Overdue contract dispute (SLA breached)': 'Assigned',
+    });
+    expect(cases.filter((c) => c.isEscalated)).toHaveLength(1);
+    expect(cases.find((c) => c.isEscalated)?.title).toBe('[Demo] Regulatory notice response (Escalated)');
     expect(cases.filter((c) => c.isConfidential)).toHaveLength(1);
     expect(cases.filter((c) => toCaseWithSla(c).slaState === 'breached')).toHaveLength(1);
     const [{ count }] = await ds.query(`SELECT COUNT(*)::int AS count FROM audit_log`);

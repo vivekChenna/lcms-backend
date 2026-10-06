@@ -175,14 +175,16 @@ export async function seedDemo(dataSource: DataSource): Promise<{ users: DemoUse
 
 async function main(): Promise<void> {
   const { AppDataSource } = await import('./data-source.js');
-  await AppDataSource.initialize();
+  const { DataSource } = await import('typeorm');
+  const quietDataSource = new DataSource({ ...AppDataSource.options, logging: false });
+  await quietDataSource.initialize();
   try {
-    const { users, caseIds } = await seedDemo(AppDataSource);
+    const { users, caseIds } = await seedDemo(quietDataSource);
     console.log('Demo data ready. Log in with password "Password123!":');
     console.table(Object.entries(users).map(([key, u]) => ({ account: key, email: u.email })));
     console.log(`${caseIds.length} demo cases present.`);
   } finally {
-    await AppDataSource.destroy();
+    await quietDataSource.destroy();
   }
 }
 
