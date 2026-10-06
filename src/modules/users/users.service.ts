@@ -172,6 +172,7 @@ export async function listUsers(
   const { entities, raw } = await qb
     .addSelect('role.name', 'role_name')
     .orderBy('user.createdAt', 'DESC')
+    .addOrderBy('user.id', 'DESC')
     .skip(skip)
     .take(take)
     .getRawAndEntities();

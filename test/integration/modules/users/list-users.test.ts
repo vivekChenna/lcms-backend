@@ -149,6 +149,22 @@ describe('GET /users, GET /users/:id', () => {
       expect(body.items).toHaveLength(1);
     });
 
+    it('pages are disjoint and cover the set even when createdAt ties', async () => {
+      for (let i = 0; i < 5; i++) {
+        await seedUserWithRole(ds, 'legal_rep', { email: `tie${i}@algihaz.local`, fullName: `Tie ${i}` });
+      }
+      await ds.query(`UPDATE users SET "createdAt" = '2026-01-01T00:00:00Z'`);
+
+      const ids: string[] = [];
+      for (const page of [1, 2, 3]) {
+        const body = (await list(`?role=legal_rep&pageSize=2&page=${page}`)).json();
+        expect(body.total).toBe(5);
+        ids.push(...body.items.map((u: { id: string }) => u.id));
+      }
+      expect(new Set(ids).size).toBe(5);
+      expect(ids).toEqual([...ids].sort().reverse());
+    });
+
     it('rejects an invalid role, isActive or blank search with 400', async () => {
       expect((await list('?role=wizard')).statusCode).toBe(400);
       expect((await list('?isActive=maybe')).statusCode).toBe(400);
