@@ -18,6 +18,7 @@ In scope:
 4. **Dashboard changes** for legal reps and new tiles (§6).
 5. **Case-scoped audit endpoint** readable by any role that can see the case (§7).
 6. **"Mark all notifications read"** (§8).
+7. **Audit coverage guard** — a test-only safety net that fails when a mutating endpoint forgets its audit entry (§8a).
 
 Out of scope (deferred, listed in §11): the "waiting on" reason endpoint, priority-based SLA targets, the closure-outcome "needs detail" flag, a "who can raise this category" setting, extra dashboard widgets (requests by department, performance block), manager rejection of a request at Submitted, the prototype's seven-status model.
 
@@ -129,6 +130,15 @@ Any authenticated role that passes the case visibility check (§5) — including
 
 `PATCH /notifications/read-all` → marks every unread notification of the caller as read (`readAt` = now), returns `{ updated: <count> }`. Idempotent; other users' rows untouched. Registered so it cannot be mistaken for `PATCH /notifications/:id/read`.
 
+## 8a. Audit coverage guard (test-only)
+
+BRD AU-14/AT-01 require every business event to be audited, and audit calls are written by hand per action. To catch a forgotten call:
+
+- **Manifest** —  lists every mutating route (, , , ) as either **audited** (with the expected action name) or **exempt** (with a written reason). Exempt today: , , ,  (authentication events are not in the BRD), ,  (read state, not a business event).
+- **Completeness test** —  records every mutating route registered; a test fails if a registered mutating route is in neither list, or a manifest entry no longer matches a route, or an exempt entry has no reason. A new endpoint therefore cannot ship unclassified.
+- **Runtime check** — in the test app only (never in production code) an  hook counts  rows before and after each mutating request that returns 2xx on a non-exempt route; if no row was added the response is replaced by a 500 , so whichever existing test exercises that route fails loudly. A concurrent request can only hide a gap, never create a false failure.
+- A route that legitimately writes no audit row on success is added to the exempt list with a reason, in the same commit.
+
 ## 9. Testing
 
 Integration tests against the real test database, per route, using `resetDatabase` and existing fixtures:
@@ -140,6 +150,7 @@ Integration tests against the real test database, per route, using `resetDatabas
 - **Dashboard:** rep tiles org-wide, `assignedToMe`, `unassigned`, panel contents and order, filter replay for the new tiles through `GET /cases`.
 - **Case audit:** every role, internal-comment and `case.rejected` rows hidden for requester/viewer and shown to legal roles, pagination, 404 for invisible cases.
 - **Notifications:** mark-all-read counts and isolation.
+- **Audit coverage guard:** the completeness test, plus a deliberate negative test (a throwaway route that mutates without auditing returns 500 ; one that audits passes).
 
 ## 10. Review focus
 
@@ -147,6 +158,7 @@ Integration tests against the real test database, per route, using `resetDatabas
 - A viewer or an unrelated requester must never learn that a confidential case exists: not through a count, a report row, an export row, a name lookup, or a case audit entry.
 - The case audit endpoint must not reveal internal legal notes or rejection reasons to requesters or viewers.
 - Names must come from batched lookups and tolerate missing users.
+- Every mutating route is classified in the audit manifest, and the existing suite passes with the runtime check on.
 - Existing clients using `Authorization: Bearer` and the tokens in the login body must keep working.
 
 ## 11. Deferred
