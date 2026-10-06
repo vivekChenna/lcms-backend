@@ -19,6 +19,7 @@ In scope:
 5. **Case-scoped audit endpoint** readable by any role that can see the case (§7).
 6. **"Mark all notifications read"** (§8).
 7. **Audit coverage guard** — a test-only safety net that fails when a mutating endpoint forgets its audit entry (§8a).
+8. **Audit date filter** — `createdFrom` / `createdTo` on the audit views and export (§7).
 
 Out of scope (deferred, listed in §11): the "waiting on" reason endpoint, priority-based SLA targets, the closure-outcome "needs detail" flag, a "who can raise this category" setting, extra dashboard widgets (requests by department, performance block), manager rejection of a request at Submitted, the prototype's seven-status model.
 
@@ -125,6 +126,8 @@ Consequences to pin in tests: a viewer's dashboard counts, report counts and CSV
 ## 7. Case-scoped audit — `GET /cases/:id/audit`
 
 Any authenticated role that passes the case visibility check (§5) — including requester and viewer — gets a read-only, paginated (`page`, `pageSize`) list, newest first: `{ items: [{ id, action, actorId, actorName, actorRole, createdAt, beforeValue, afterValue }], total, page, pageSize }`. For requester and viewer, rows are filtered by assumption 6 (internal comment events and `case.rejected` removed, and `total` reflects the filtered count). No write access, no audit entry for the read. `GET /audit` and `GET /audit/export` stay admin / legal manager only.
+
+**Audit date filter (owner request).** `GET /audit`, `GET /audit/export` and `GET /cases/:id/audit` accept optional `createdFrom` and `createdTo` (ISO timestamps, both inclusive) filtering on the entry's `createdAt`; `createdFrom` after `createdTo`, or an unparsable value, is a 400. The existing filters (`actorId`, `action`, `caseId`) are unchanged and combine with the dates.
 
 ## 8. Mark all notifications read
 
