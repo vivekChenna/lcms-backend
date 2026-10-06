@@ -17,6 +17,7 @@ export default fp(async function swaggerPlugin(app: FastifyInstance) {
       components: {
         securitySchemes: {
           bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+          cookieAuth: { type: 'apiKey', in: 'cookie', name: 'lcms_access' },
         },
       },
     },

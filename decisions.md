@@ -6,6 +6,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 ## frontend-integration (readiness for the React frontend)
 
+- [Task 14 — Document cookie authentication in the OpenAPI document](decisions/frontend-integration/task-14-openapi-cookie-scheme.md)
 - [Task 13 — Role, active and search filters on `GET /users`](decisions/frontend-integration/task-13-users-list-filters.md)
 - [Task 12 — Demo seed data (`pnpm seed:demo`)](decisions/frontend-integration/task-12-demo-seed.md)
 - [Task 11 — Final review fixes](decisions/frontend-integration/task-11-final-review-fixes.md)
