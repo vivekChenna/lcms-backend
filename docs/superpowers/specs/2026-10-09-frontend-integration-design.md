@@ -134,9 +134,9 @@ Any authenticated role that passes the case visibility check (§5) — including
 
 BRD AU-14/AT-01 require every business event to be audited, and audit calls are written by hand per action. To catch a forgotten call:
 
-- **Manifest** —  lists every mutating route (, , , ) as either **audited** (with the expected action name) or **exempt** (with a written reason). Exempt today: , , ,  (authentication events are not in the BRD), ,  (read state, not a business event).
-- **Completeness test** —  records every mutating route registered; a test fails if a registered mutating route is in neither list, or a manifest entry no longer matches a route, or an exempt entry has no reason. A new endpoint therefore cannot ship unclassified.
-- **Runtime check** — in the test app only (never in production code) an  hook counts  rows before and after each mutating request that returns 2xx on a non-exempt route; if no row was added the response is replaced by a 500 , so whichever existing test exercises that route fails loudly. A concurrent request can only hide a gap, never create a false failure.
+- **Manifest** — `test/integration/helpers/audit-manifest.ts` lists every mutating route (`POST`, `PATCH`, `PUT`, `DELETE`) as either **audited** (with the expected action name) or **exempt** (with a written reason). Exempt today: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/change-password` (authentication events are not in the BRD), `PATCH /notifications/:id/read`, `PATCH /notifications/read-all` (read state, not a business event).
+- **Completeness test** — `buildTestApp` records every mutating route registered; a test fails if a registered mutating route is in neither list, or a manifest entry no longer matches a route, or an exempt entry has no reason. A new endpoint therefore cannot ship unclassified.
+- **Runtime check** — in the test app only (never in production code) an `onSend` hook counts `audit_log` rows before and after each mutating request that returns 2xx on a non-exempt route; if no row was added the response is replaced by a 500 `AUDIT_COVERAGE_MISSING`, so whichever existing test exercises that route fails loudly. A concurrent request can only hide a gap, never create a false failure.
 - A route that legitimately writes no audit row on success is added to the exempt list with a reason, in the same commit.
 
 ## 9. Testing
@@ -150,7 +150,7 @@ Integration tests against the real test database, per route, using `resetDatabas
 - **Dashboard:** rep tiles org-wide, `assignedToMe`, `unassigned`, panel contents and order, filter replay for the new tiles through `GET /cases`.
 - **Case audit:** every role, internal-comment and `case.rejected` rows hidden for requester/viewer and shown to legal roles, pagination, 404 for invisible cases.
 - **Notifications:** mark-all-read counts and isolation.
-- **Audit coverage guard:** the completeness test, plus a deliberate negative test (a throwaway route that mutates without auditing returns 500 ; one that audits passes).
+- **Audit coverage guard:** the completeness test, plus a deliberate negative test (a throwaway route that mutates without auditing returns 500 `AUDIT_COVERAGE_MISSING`; one that audits passes).
 
 ## 10. Review focus
 
