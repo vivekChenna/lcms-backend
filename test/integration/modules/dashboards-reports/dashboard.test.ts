@@ -177,6 +177,21 @@ describe('GET /dashboard', () => {
     await app.close();
   });
 
+  it('every tile filter replays through GET /cases to the same count for a legal rep', async () => {
+    const app = buildTestApp(ds);
+    await app.ready();
+    const world = await seedWorld();
+    const headers = authHeader(app, world.repId, 'legal_rep');
+    const dashboard = (await app.inject({ method: 'GET', url: '/dashboard', headers })).json();
+
+    for (const tile of ['total', 'open', 'awaitingAcceptance', 'waitingOnInput', 'overdue', 'closed'] as const) {
+      const params = new URLSearchParams({ ...dashboard.filters[tile], pageSize: '100' });
+      const list = await app.inject({ method: 'GET', url: `/cases?${params.toString()}`, headers });
+      expect(list.json().total, tile).toBe(dashboard.tiles[tile]);
+    }
+    await app.close();
+  });
+
   it('caps each panel at 20 items, oldest first, while the count stays exact', async () => {
     const app = buildTestApp(ds);
     await app.ready();

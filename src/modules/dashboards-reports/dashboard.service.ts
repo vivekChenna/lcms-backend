@@ -17,6 +17,17 @@ const TILE_FILTERS: DashboardResult['filters'] = {
   closed: { status: 'Closed' },
 };
 
+// GET /cases does not limit a legal rep to their own cases, so a rep's tile filters
+// must carry the assignee to reproduce the rep's counts (UI-10/11).
+function tileFiltersFor(actor: Actor): DashboardResult['filters'] {
+  if (actor.role !== 'legal_rep') {
+    return TILE_FILTERS;
+  }
+  return Object.fromEntries(
+    Object.entries(TILE_FILTERS).map(([tile, filter]) => [tile, { ...filter, assignedLegalRepId: actor.id }]),
+  );
+}
+
 // Requester scope comes from applyCaseFilters (the same rule as GET /cases);
 // a legal rep is limited to their own cases; manager/admin/viewer see all.
 function scopedQuery(dataSource: DataSource, actor: Actor): SelectQueryBuilder<Case> {
@@ -85,7 +96,7 @@ export async function getDashboard(dataSource: DataSource, actor: Actor): Promis
       onTime: total - overdue,
       closed: Number(tileRow?.closed ?? 0),
     },
-    filters: TILE_FILTERS,
+    filters: tileFiltersFor(actor),
     byStatus,
   };
 
@@ -105,6 +116,7 @@ export async function getDashboard(dataSource: DataSource, actor: Actor): Promis
       .addGroupBy('u."fullName"')
       .orderBy('COUNT(*)', 'DESC')
       .addOrderBy('u."fullName"', 'ASC')
+      .addOrderBy('c."assignedLegalRepId"', 'ASC')
       .getRawMany<{ legalRepId: string; fullName: string; openCount: string; overdueCount: string }>();
     result.managerPanels = {
       openCaseloadByRep: loadRows.map((row) => ({
