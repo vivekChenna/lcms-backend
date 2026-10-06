@@ -72,15 +72,15 @@ The frontend and the e2e tests need a populated dev database: one user per role,
 - Produces: `export async function seedDemo(dataSource: DataSource): Promise<{ users: Record<'admin'|'manager'|'rep1'|'rep2'|'requester'|'viewer', { id: string; email: string }>; caseIds: string[] }>` — idempotent (second run creates nothing new, returns the same ids) and refuses to run when `process.env.NODE_ENV === 'production'` (throws `Error('seed:demo must not run in production')`). A `main()` that initialises `AppDataSource`, calls it, prints the credentials table, destroys the data source.
 - Consumes: existing `seedAdmin` pattern (`src/db/seed-admin.ts`), `hashPassword`, entities, `submitCase`/workflow services (use the real services so SLA dates, reference numbers and audit rows are correct — do **not** insert raw SQL into `cases`).
 
-**Required data** (all passwords `Password123!`, emails `<role>@algihaz.demo`):
-- Users: `admin@`, `manager@` (legal_manager), `rep1@` and `rep2@` (legal_rep), `requester@` (requester, with `departmentId`, `entityId`, `businessUnitId` set), `viewer@`. Roles come from the existing `roles` rows.
+**Required data** (all passwords `Password123!`, emails exactly: requester `vivek@gmail.com`, admin `vivekadmin@gmail.com`, legal manager `viveklegalmanager@gmail.com`, legal reps `viveklegalrep@gmail.com` and `viveklegalrep2@gmail.com`, viewer `vivekviewer@gmail.com`):
+- Users: `vivekadmin@gmail.com`, `viveklegalmanager@gmail.com` (legal_manager), `viveklegalrep@gmail.com` and `viveklegalrep2@gmail.com` (legal_rep), `vivek@gmail.com` (requester, with `departmentId`, `entityId`, `businessUnitId` set), `vivekviewer@gmail.com`. Roles come from the existing `roles` rows.
 - Master data: if the migrations already seed categories / case types / departments / entities / business units / closure outcomes, reuse them; otherwise create at least: categories "Internal" and "Commercial", one case type under each, two departments, one entity with one business unit, two closure outcomes. Look up by name; create only what is missing.
 - Cases (created through the real services, by the right actors): 1 `Submitted` (unassigned), 1 `Assigned` to rep1 (not yet accepted), 1 `In Progress` (accepted by rep1), 1 `Waiting on Input` (open information request raised by rep1, responder = requester), 1 escalated `In Progress`, 1 `Closed`, 1 **confidential** `Submitted`, 1 case with an SLA already breached (set `resolutionDueAt` in the past with a direct entity update after creation). Add one internal comment and one public comment on the In Progress case.
 
 - [ ] **Step 1: Write the failing test** — call `seedDemo(ds)` twice against the test database; assert the first call yields 6 users with the 6 roles, ≥ 8 cases covering all five statuses, exactly one confidential case, one case with `slaState === 'breached'` via the service; assert the second call returns identical ids and the `cases` count is unchanged; assert `NODE_ENV=production` throws (use `vi.stubEnv`). Use `resetDatabase(ds)` first and the standard `afterAll(() => ds.undoLastMigration())`.
 - [ ] **Step 2: Run** `pnpm exec vitest run test/integration/db/seed-demo.test.ts` — expect FAIL (module missing).
 - [ ] **Step 3: Implement** `seed-demo.ts` per the interface above.
-- [ ] **Step 4: Run** the test — expect PASS. Then run the real script against the dev database: `pnpm migration:run && pnpm seed:demo` and again (idempotent); confirm login works: `curl -s -X POST localhost:4000/auth/login -H "Content-Type: application/json" -d '{"email":"requester@algihaz.demo","password":"Password123!"}'` (dev server running) returns a user.
+- [ ] **Step 4: Run** the test — expect PASS. Then run the real script against the dev database: `pnpm migration:run && pnpm seed:demo` and again (idempotent); confirm login works: `curl -s -X POST localhost:4000/auth/login -H "Content-Type: application/json" -d '{"email":"vivek@gmail.com","password":"Password123!"}'` (dev server running) returns a user.
 - [ ] **Step 5:** `npx tsc --noEmit`; full `pnpm test:integration` once. Commit: `git add src/db/seed-demo.ts package.json test/integration/db/seed-demo.test.ts decisions.md decisions/frontend-integration/task-12-demo-seed.md` / `git commit -m "feat: idempotent demo seed with one user per role and cases in every state"`.
 
 ### Task A2: Role and active filters on `GET /users`
@@ -358,7 +358,7 @@ export async function requireNav(queryClient: QueryClient, location: { href: str
 - [ ] **Step 2: Run** — FAIL.
 - [ ] **Step 3: Implement** as specified; do the `git mv` renames and update the route ids.
 - [ ] **Step 4:** `npm run build` once to regenerate `routeTree.gen.ts`; run the tests — PASS; `npx tsc --noEmit`, lint.
-- [ ] **Step 5 (manual, real backend):** log in as `viewer@algihaz.demo`, reload the page (stays signed in — cookie), open `/audit` directly (lands on `/`), log out (DevTools shows both cookies cleared), open `/cases` directly (lands on `/login?redirect=/cases`).
+- [ ] **Step 5 (manual, real backend):** log in as `vivekviewer@gmail.com`, reload the page (stays signed in — cookie), open `/audit` directly (lands on `/`), log out (DevTools shows both cookies cleared), open `/cases` directly (lands on `/login?redirect=/cases`).
 - [ ] **Step 6:** Commit `feat: cookie session, route guards and role permission matrix`.
 
 ### Task B5: Application shell and design system primitives
@@ -462,7 +462,7 @@ export const qk = {
 
 - [ ] **Step 1: Failing tests:** `search-params.test.ts` — `casesSearchSchema.parse({status:'Bogus', page:'2'})` → `status` dropped, `page 2`; unknown keys ignored. `cases-page.test.tsx` — typing in search updates the URL after the debounce and requests `/cases?search=…&page=1`; changing a filter while on page 3 requests page 1; a requester sees no "Assigned to" filter; clicking Export calls `/cases/export` without `page`/`pageSize` and shows the truncation warning when `X-Export-Truncated: true`; confidential case row shows the lock badge.
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** from the dashboard click each tile → list opens pre-filtered, count equals the tile; as `viewer@` the confidential seeded case is absent; as `requester@` only own/department cases.
+- [ ] **Step 5 (manual):** from the dashboard click each tile → list opens pre-filtered, count equals the tile; as `vivekviewer@gmail.com` the confidential seeded case is absent; as `vivek@gmail.com` only own/department cases.
 - [ ] **Step 6:** Commit `feat: case repository with URL-driven filters, search and CSV export`.
 
 ### Task B9: New request form
@@ -485,7 +485,7 @@ export const qk = {
 
 - [ ] **Step 1: Failing tests:** `schema.test.ts` — blanks omitted (`toCreateBody({contactEmail:'  '})` has no `contactEmail` key); `estimatedValue '1,200.50'` → `1200.5`; requester body has no `entityId`; admin body has it; description of 19 chars fails; declaration unchecked fails. `new-request-page.test.tsx` — Next is blocked on step 1 until required fields are valid; a stubbed `400` with `details: { description: 'Too short' }` puts the error under Description and returns to step 1; successful submit posts then navigates; viewer cannot reach the route (guard) — assert via the permission matrix, not the page.
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** as `requester@` submit with and without optional fields and with a 1 KB `.txt` attachment; the new case appears in the list and the dashboard "Submitted" tiles; as `admin@` the entity/business unit selectors show.
+- [ ] **Step 5 (manual):** as `vivek@gmail.com` submit with and without optional fields and with a 1 KB `.txt` attachment; the new case appears in the list and the dashboard "Submitted" tiles; as `vivekadmin@gmail.com` the entity/business unit selectors show.
 - [ ] **Step 6:** Commit `feat: guided new-request form with intake fields, confidentiality and attachments`.
 
 ### Task B10: Case detail — overview, workflow actions, edit
@@ -518,7 +518,7 @@ export const qk = {
 
 - [ ] **Step 1: Failing tests:** `actionsFor` table test over (5 roles × 5 statuses × assigned-to-me/not) asserting exactly which of `accept, reject, assign, escalate, close, priority, edit` are returned (write the table out); hook tests — `useCloseCase` sends the exact body and invalidates the five key prefixes (spy), a stubbed 409 leaves the dialog open with the backend message; page tests — viewer sees no action buttons; requester sees Edit only on their own non-closed case; 404 renders "Case not found".
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** as `manager@` assign the Submitted case to `rep1@`; as `rep1@` accept it (Accept/Reject disappear, status → In Progress); escalate with and without a reason (blocked without); close with an outcome (blocked while an information request is open, with the backend message); each step reflected on the dashboard without a manual refresh.
+- [ ] **Step 5 (manual):** as `viveklegalmanager@gmail.com` assign the Submitted case to `viveklegalrep@gmail.com`; as `viveklegalrep@gmail.com` accept it (Accept/Reject disappear, status → In Progress); escalate with and without a reason (blocked without); close with an outcome (blocked while an information request is open, with the backend message); each step reflected on the dashboard without a manual refresh.
 - [ ] **Step 6:** Commit `feat: case detail overview with role-aware workflow actions`.
 
 ### Task B11: Case detail — documents tab
@@ -548,7 +548,7 @@ export const qk = {
 
 - [ ] **Step 1: Failing tests:** Raise button hidden for requester/viewer/manager; Respond only for the named responder and only while open; a backend 400 shows the field message under the textarea; success invalidates `info-requests`, `case`, `cases`, `dashboard`.
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** as `rep1@` raise a request to `requester@`; as `requester@` respond with an attachment; status flips Waiting on Input → In Progress; closing is blocked while one is open.
+- [ ] **Step 5 (manual):** as `viveklegalrep@gmail.com` raise a request to `vivek@gmail.com`; as `vivek@gmail.com` respond with an attachment; status flips Waiting on Input → In Progress; closing is blocked while one is open.
 - [ ] **Step 6:** Commit `feat: case information requests tab`.
 
 ### Task B13: Case detail — comments and audit tabs
@@ -561,7 +561,7 @@ export const qk = {
 
 - [ ] **Step 1: Failing tests:** requester sees no internal checkbox; manager does and posting sends `isInternal: true`; internal comment from the fixture renders the badge for legal roles; `describe` returns a sentence for every action above and the raw string for `weird.action`; audit tab paginates.
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** post an internal note as `rep1@`; confirm `requester@` cannot see it in the Comments tab **or** the Audit tab; reject a case (as `rep1@`) and confirm the requester's audit shows no rejection reason.
+- [ ] **Step 5 (manual):** post an internal note as `viveklegalrep@gmail.com`; confirm `vivek@gmail.com` cannot see it in the Comments tab **or** the Audit tab; reject a case (as `viveklegalrep@gmail.com`) and confirm the requester's audit shows no rejection reason.
 - [ ] **Step 6:** Commit `feat: case comments and audit timeline tabs`.
 
 ### Task B14: Reports screen
@@ -578,7 +578,7 @@ Empty result → `EmptyState`. Each report is its own `useQuery` (parallel), so 
 
 - [ ] **Step 1: Failing tests:** viewer sees the page, requester is blocked by the guard (matrix); setting from > to shows the error and fires no request; export hits `/reports/ageing/export?…`; `compliancePercent: null` renders the empty text; one report 500 does not hide the others.
 - [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint.
-- [ ] **Step 5 (manual):** compare each chart total with the API figure and with the exported CSV row count for `manager@` and `viewer@`; confirm the confidential case is not counted for `viewer@`.
+- [ ] **Step 5 (manual):** compare each chart total with the API figure and with the exported CSV row count for `viveklegalmanager@gmail.com` and `vivekviewer@gmail.com`; confirm the confidential case is not counted for `vivekviewer@gmail.com`.
 - [ ] **Step 6:** Commit `feat: reports with filters, charts and CSV export`.
 
 ### Task B15: Audit log screen
@@ -588,7 +588,7 @@ Empty result → `EmptyState`. Each report is its own `useQuery` (parallel), so 
 **Behaviour:** `GET /audit` table (time, actor name + role, action, case reference link when present, summary from `describe.ts` of B13 for case actions, a generic "Changed X" fallback for user/master-data actions with a "Details" drawer showing `beforeValue`/`afterValue` JSON pretty-printed). Filters: action (free text prefix or select of known prefixes), actor, case id/reference, **created from / to** (end-of-day rule), `from > to` blocked client-side. Export button → `apiDownload('/audit/export' + qs(filters), 'audit.csv')` with the truncation notice. Roles: `admin`, `legal_manager`. Pagination resets to page 1 on filter change; the backend sorts newest first with an id tie-breaker.
 
 - [ ] **Step 1: Failing tests:** reversed range blocked; export carries the same filters as the list; the details drawer shows JSON; requester/viewer blocked by the guard.
-- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): as `admin@` perform an action (create a user) and see it at the top with the right actor. Step 6: Commit `feat: audit log screen with date filter and export`.
+- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): as `vivekadmin@gmail.com` perform an action (create a user) and see it at the top with the right actor. Step 6: Commit `feat: audit log screen with date filter and export`.
 
 ### Task B16: Notifications — page, bell and unread count
 
@@ -597,7 +597,7 @@ Empty result → `EmptyState`. Each report is its own `useQuery` (parallel), so 
 **Behaviour** (`GET /notifications`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` body `{}` → `{ updated }`): the page lists notifications (title, body, time, unread dot, `relatedCaseReference` link to `/cases/$relatedCaseId`), filter All/Unread, "Mark all as read" (hidden when none unread). Clicking an item marks it read and navigates to its case. **Bell** in the topbar shows an unread count badge (`99+` cap) from a lightweight query (`GET /notifications?page=1&pageSize=1&unread=true` if the backend supports an unread filter — **check the query schema in `notifications.schemas.ts`; if not, fetch `pageSize=50` and count client-side, and note the limit in `docs/decisions.md`**) with `refetchInterval: 60_000` and `refetchIntervalInBackground: false`; a popover shows the latest 5 with "View all". Mark-read mutations use optimistic updates with rollback and invalidate `['notifications']`.
 
 - [ ] **Step 1: Failing tests:** unread badge count and `99+`; mark-all sends `PATCH /notifications/read-all` with body `{}` and clears the badge; clicking an item marks it read once and navigates; optimistic update rolls back on a 500.
-- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): as `manager@` assign a case; as `rep1@` the bell shows 1 within a minute (or after window refocus); mark read; badge clears. Step 6: Commit `feat: notifications page and live unread bell`.
+- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): as `viveklegalmanager@gmail.com` assign a case; as `viveklegalrep@gmail.com` the bell shows 1 within a minute (or after window refocus); mark read; badge clears. Step 6: Commit `feat: notifications page and live unread bell`.
 
 ### Task B17: Administration — users
 
@@ -615,7 +615,7 @@ Empty result → `EmptyState`. Each report is its own `useQuery` (parallel), so 
 **Behaviour:** Master data (admin only): tabs for **Departments, Case categories, Closure outcomes** (simple `{ name, isActive }` — list, add, rename, activate/deactivate via `GET/POST/PATCH /departments|/case-categories|/closure-outcomes[/{id}]`), **Entities** and **Business units** (`/entities`, `/business-units`; business units belong to an entity — read their schemas), **Case types** (`/case-types`, belong to a category — read the schema for required fields). Duplicate name `409` → field error. Every mutation invalidates the matching `qk.*` lookup key so the new-request form sees changes immediately. Routing rules (`GET /routing-rules` for admin + manager; `POST`/`PATCH` admin): list showing which legal rep is auto-assigned for which category/type/entity/department combination as the schema defines (read `routing-rules.schemas.ts`), add/edit rule (rep selector via `useLegalReps` — admin can call `GET /users` too), activate/deactivate; manager read-only.
 
 - [ ] **Step 1: Failing tests:** manager sees the routing rules table without buttons and cannot open Master data (guard matrix); 409 duplicate shows the field error; creating a category invalidates `['lookups','categories']`.
-- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): add a category + case type as `admin@`, then open the new-request form as `requester@` and see them; add a routing rule and submit a matching case to see auto-assignment (`case.auto_assigned` in the audit tab). Step 6: Commit `feat: master data and routing rule administration`.
+- [ ] **Step 2–4:** FAIL → implement → PASS; tsc; lint. Step 5 (manual): add a category + case type as `vivekadmin@gmail.com`, then open the new-request form as `vivek@gmail.com` and see them; add a routing rule and submit a matching case to see auto-assignment (`case.auto_assigned` in the audit tab). Step 6: Commit `feat: master data and routing rule administration`.
 
 ### Task B19: Profile — change password and session UX polish
 
@@ -647,7 +647,7 @@ Empty result → `EmptyState`. Each report is its own `useQuery` (parallel), so 
 - Create: `e2e/playwright.config.ts`, `e2e/fixtures.ts`, `e2e/auth.spec.ts`, `e2e/workflow.spec.ts`, `e2e/visibility.spec.ts`, `e2e/admin.spec.ts`, `e2e/reports-audit.spec.ts`
 - Modify: `package.json` (`"e2e": "playwright test -c e2e/playwright.config.ts"`, devDependency `@playwright/test`)
 
-**Setup contract:** the suite assumes the backend is running on `http://localhost:4000` with a **freshly seeded** database (`pnpm migration:run && pnpm seed:demo` on a throwaway database — document the command in the spec header; recommend `lcms_e2e` DB via `DATABASE_URL` so the dev data is untouched) and the frontend on `http://localhost:5173` (`webServer` in the config starts `npm run dev`). `fixtures.ts` exports `loginAs(page, 'requester'|'manager'|'rep1'|'rep2'|'admin'|'viewer')` that fills the real login form (credentials from `seed:demo`: `<role>@algihaz.demo` / `Password123!`).
+**Setup contract:** the suite assumes the backend is running on `http://localhost:4000` with a **freshly seeded** database (`pnpm migration:run && pnpm seed:demo` on a throwaway database — document the command in the spec header; recommend `lcms_e2e` DB via `DATABASE_URL` so the dev data is untouched) and the frontend on `http://localhost:5173` (`webServer` in the config starts `npm run dev`). `fixtures.ts` exports `loginAs(page, 'requester'|'manager'|'rep1'|'rep2'|'admin'|'viewer')` that fills the real login form (credentials from `seed:demo`: the six emails listed in Task A1 / `Password123!`).
 
 **Specs (each test independent; create its own case where it mutates):**
 - `auth.spec.ts`: wrong password shows the error; each role lands on the dashboard and sees exactly the matrix's nav items; reload keeps the session (cookie); sign out clears it and `/cases` redirects to `/login?redirect=…`; `viewer` opening `/audit` and `/new-request` lands on `/`; cookies are `HttpOnly` (`context.cookies()` shows `lcms_access`/`lcms_refresh` with `httpOnly: true`) and **`localStorage`/`sessionStorage` contain no token**; an expired access cookie is recovered silently (delete only `lcms_access` via `context.clearCookies({ name: 'lcms_access' })`, navigate — still signed in via refresh).
