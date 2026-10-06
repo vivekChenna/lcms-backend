@@ -164,6 +164,8 @@ describe('notifications created by case actions', () => {
 
     expect(res.statusCode).toBe(200);
     expect(await types(repId)).toEqual([]);
+    const [{ count }] = await ds.query('SELECT COUNT(*)::int AS count FROM notifications');
+    expect(count).toBe(0);
     await app.close();
   });
 

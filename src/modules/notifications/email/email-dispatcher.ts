@@ -81,7 +81,6 @@ export async function dispatchPendingEmails(
   return result;
 }
 
-// src/modules/notifications/email/email-dispatcher.ts — append at the end of the file
 const DEFAULT_WORKER_INTERVAL_MS = 10_000;
 
 export type EmailWorker = { stop(): Promise<void> };

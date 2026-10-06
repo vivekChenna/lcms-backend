@@ -8,7 +8,7 @@ Index of why each meaningful change was made. One file per task/feature under `d
 
 - [Task 9 — Email worker and server wiring](decisions/notifications/task-09-email-worker-and-server.md)
 - [Task 8 — Durable email dispatcher with retries and backoff](decisions/notifications/task-08-email-dispatcher.md)
-- [Task 7 � In-app notification API](decisions/notifications/task-07-in-app-api.md)
+- [Task 7 — In-app notification API](decisions/notifications/task-07-in-app-api.md)
 - [Task 6 — Wire information-request actions to notifications](decisions/notifications/task-06-information-request-wiring.md)
 - [Task 5 — Wire case actions to notifications](decisions/notifications/task-05-case-action-wiring.md)
 - [Task 4 — Information-request notification event helpers](decisions/notifications/task-04-information-request-event-helpers.md)

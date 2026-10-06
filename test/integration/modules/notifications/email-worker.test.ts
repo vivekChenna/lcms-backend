@@ -80,7 +80,7 @@ describe('startEmailWorker', () => {
       },
     };
     // A mailer failure is handled inside dispatchPendingEmails (retry bookkeeping);
-    // to exercise the worker's own error path, close the data source under it.
+    // to exercise the worker's own error path, pass a data source whose transaction throws.
     const brokenDataSource = { transaction: async () => { throw new Error('database unavailable'); } } as unknown as DataSource;
 
     const worker = startEmailWorker({ dataSource: brokenDataSource, mailer: exploding, intervalMs: 15, onError: (error) => errors.push(error) });
