@@ -10,17 +10,19 @@ services:
     volumes:
       - lcms_pg_dev:/var/lib/postgresql/data
 
-  minio:
-    image: minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1
-    command: server /data --console-address ":9001"
+  # S3-compatible object storage for case documents. This was MinIO until its official images were
+  # withdrawn from Docker Hub and Quay; the backend only uses the standard S3 API, so any
+  # S3-compatible server works. Same ports and credentials as before (S3 :9000, console :9001).
+  s3:
+    image: rustfs/rustfs:1.0.1
     environment:
-      MINIO_ROOT_USER: lcms
-      MINIO_ROOT_PASSWORD: lcms12345
+      RUSTFS_ACCESS_KEY: lcms
+      RUSTFS_SECRET_KEY: lcms12345
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - lcms_minio_dev:/data
+      - lcms_s3_dev:/data
 
   mailhog:
     image: mailhog/mailhog:latest
@@ -30,4 +32,4 @@ services:
 
 volumes:
   lcms_pg_dev:
-  lcms_minio_dev:
+  lcms_s3_dev:
