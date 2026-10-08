@@ -4,9 +4,10 @@ import { loadEnv } from '../../config/env';
 import { REFRESH_COOKIE } from '../../config/security';
 import { UnauthorizedError } from '../../shared/errors';
 import { login, refreshSession, logout, changePassword, loadProfile } from './auth.service';
-import { loginBodySchema, refreshBodySchema, sessionResponseSchema, changePasswordBodySchema, profileSchema } from './auth.schemas';
+import { loginBodySchema, refreshBodySchema, sessionResponseSchema, changePasswordBodySchema, profileSchema, forgotPasswordBodySchema, setPasswordBodySchema } from './auth.schemas';
+import { requestPasswordLink, setPasswordWithToken } from './password-links';
 import { setSessionCookies, clearSessionCookies } from './auth-cookies';
-import { loginRateLimit } from '../../plugins/rate-limit';
+import { loginRateLimit, setPasswordRateLimit } from '../../plugins/rate-limit';
 
 // The CSRF plugin skips its Origin check for any request carrying an
 // Authorization header, so such a request must never be served from the cookie.
@@ -27,6 +28,26 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     const accessToken = app.signAccessToken(user);
     setSessionCookies(reply, app.security, accessToken, refreshToken);
     return { accessToken, refreshToken, user: await loadProfile(app.dataSource, user.id) };
+  });
+
+  // Public. The answer is identical whether or not the address has an account, and the mail is sent
+  // after the response, so neither the body nor the timing reveals who has one.
+  typedApp.post('/auth/forgot-password', {
+    config: { rateLimit: loginRateLimit },
+    schema: { tags: ['Auth'], body: forgotPasswordBodySchema },
+  }, async (request, reply) => {
+    const deps = { dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl };
+    void requestPasswordLink(deps, request.body.email).catch((error) => request.log.error(error, 'password link request failed'));
+    reply.status(202).send({ message: 'If that account exists, we have emailed it a link.' });
+  });
+
+  // Public. The one-time token from the email is the credential.
+  typedApp.post('/auth/set-password', {
+    config: { rateLimit: setPasswordRateLimit },
+    schema: { tags: ['Auth'], body: setPasswordBodySchema },
+  }, async (request, reply) => {
+    await setPasswordWithToken(app.dataSource, request.body.token, request.body.newPassword);
+    reply.status(204).send();
   });
 
   typedApp.post('/auth/refresh', {

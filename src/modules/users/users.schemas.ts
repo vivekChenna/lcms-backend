@@ -5,7 +5,6 @@ import { paginationQuerySchema } from '../../shared/pagination';
 export const createUserBodySchema = z.object({
   fullName: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(8),
   designation: z.string().optional(),
   phone: z.string().optional(),
   departmentId: z.string().uuid().optional(),
@@ -23,10 +22,17 @@ export const userResponseSchema = z.object({
   entityId: z.string().nullable(),
   businessUnitId: z.string().nullable(),
   isActive: z.boolean(),
+  // true until the user has chosen a password from the emailed link
+  isInvited: z.boolean(),
   role: z.enum(ROLE_NAMES),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
+// POST /users also says whether the invitation email went out (the user exists either way)
+export const createUserResponseSchema = userResponseSchema.extend({ inviteEmailSent: z.boolean() });
+
+export const sendPasswordLinkResponseSchema = z.object({ emailSent: z.literal(true) });
 
 export const userListQuerySchema = paginationQuerySchema.extend({
   role: z.enum(ROLE_NAMES).optional(),
@@ -58,6 +64,3 @@ export const updateUserBodySchema = z.object({
   businessUnitId: z.string().uuid().nullable().optional(),
 });
 
-export const resetPasswordBodySchema = z.object({
-  newPassword: z.string().min(8),
-});

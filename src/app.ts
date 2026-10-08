@@ -24,15 +24,27 @@ import dashboardRoutes from './modules/dashboards-reports/dashboard.routes';
 import reportsRoutes from './modules/dashboards-reports/reports.routes';
 import type { ObjectStorage } from './shared/storage/object-storage';
 import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from './modules/documents/upload-config';
+import type { Mailer } from './modules/notifications/email/mailer';
 
 declare module 'fastify' {
   interface FastifyInstance {
     dataSource: DataSource;
     security: SecurityConfig;
+    /** null when email is not configured */
+    mailer: Mailer | null;
+    /** public frontend address used in emailed links; undefined when not configured */
+    frontendUrl: string | undefined;
   }
 }
 
-export type AppOptions = { storage: ObjectStorage; uploadConfig?: UploadConfig; exportRowCap?: number; security?: SecurityConfig };
+export type AppOptions = {
+  storage: ObjectStorage;
+  uploadConfig?: UploadConfig;
+  exportRowCap?: number;
+  security?: SecurityConfig;
+  mailer?: Mailer | null;
+  frontendUrl?: string;
+};
 
 export function buildApp(dataSource: DataSource, options: AppOptions): FastifyInstance {
   const uploadConfig = options.uploadConfig ?? DEFAULT_UPLOAD_CONFIG;
@@ -40,6 +52,8 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   app.decorate('dataSource', dataSource);
   const security = options.security ?? securityConfigFromEnv(loadEnv());
   app.decorate('security', security);
+  app.decorate('mailer', options.mailer ?? null);
+  app.decorate('frontendUrl', options.frontendUrl);
   if (security.corsOrigins.length === 0) {
     app.log.warn('CORS_ORIGINS is empty: cookie-authenticated writes (POST/PATCH/PUT/DELETE) will be rejected with 403 CSRF_BLOCKED until CORS_ORIGINS lists the frontend origin, even when the frontend is served from the same origin as the API.');
   }

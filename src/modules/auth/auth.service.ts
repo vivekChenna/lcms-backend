@@ -73,7 +73,8 @@ export async function login(
   password: string,
 ): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
   const user = await dataSource.getRepository(User).findOne({ where: { email: email.toLowerCase() } });
-  if (!user || !user.isActive) {
+  // an invited user has no password yet (passwordHash is null), so there is nothing to match
+  if (!user || !user.isActive || !user.passwordHash) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
@@ -106,7 +107,7 @@ export async function changePassword(
   newPassword: string,
 ): Promise<void> {
   const user = await dataSource.getRepository(User).findOneOrFail({ where: { id: userId } });
-  const currentOk = await verifyPassword(user.passwordHash, currentPassword);
+  const currentOk = user.passwordHash !== null && (await verifyPassword(user.passwordHash, currentPassword));
   if (!currentOk) {
     throw new ValidationError('Current password is incorrect');
   }

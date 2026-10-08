@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
-import { createUser, listUsers, getUserById, updateUserRole, deactivateUser, activateUser, updateUser, resetPassword } from './users.service';
+import { createUser, listUsers, getUserById, updateUserRole, deactivateUser, activateUser, updateUser, sendUserPasswordLink } from './users.service';
 import { buildPaginatedResponse } from '../../shared/pagination';
 import {
   createUserBodySchema,
@@ -11,7 +11,8 @@ import {
   userIdParamsSchema,
   updateUserRoleBodySchema,
   updateUserBodySchema,
-  resetPasswordBodySchema,
+  createUserResponseSchema,
+  sendPasswordLinkResponseSchema,
 } from './users.schemas';
 
 export default async function usersRoutes(app: FastifyInstance): Promise<void> {
@@ -19,9 +20,9 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
 
   typedApp.post('/users', {
     preHandler: [app.authenticate, requireRole(['admin'])],
-    schema: { tags: ['Users'], security: [{ bearerAuth: [] }], body: createUserBodySchema, response: { 201: userResponseSchema } },
+    schema: { tags: ['Users'], security: [{ bearerAuth: [] }], body: createUserBodySchema, response: { 201: createUserResponseSchema } },
   }, async (request, reply) => {
-    const user = await createUser(app.dataSource, request.user.id, request.body);
+    const user = await createUser({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl }, request.user.id, request.body);
     reply.status(201).send(user);
   });
 
@@ -68,11 +69,11 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
     return updateUser(app.dataSource, request.user.id, request.params.id, request.body);
   });
 
-  typedApp.patch('/users/:id/reset-password', {
+  typedApp.post('/users/:id/send-password-link', {
     preHandler: [app.authenticate, requireRole(['admin'])],
-    schema: { tags: ['Users'], security: [{ bearerAuth: [] }], params: userIdParamsSchema, body: resetPasswordBodySchema },
-  }, async (request, reply) => {
-    await resetPassword(app.dataSource, request.user.id, request.params.id, request.body.newPassword);
-    reply.status(204).send();
+    schema: { tags: ['Users'], security: [{ bearerAuth: [] }], params: userIdParamsSchema, response: { 200: sendPasswordLinkResponseSchema } },
+  }, async (request) => {
+    await sendUserPasswordLink({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl }, request.user.id, request.params.id);
+    return { emailSent: true as const };
   });
 }

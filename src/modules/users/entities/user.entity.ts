@@ -11,8 +11,9 @@ export class User {
   @Column({ type: 'varchar', unique: true })
   email!: string;
 
-  @Column({ type: 'varchar' })
-  passwordHash!: string;
+  // null while the user is invited and has not chosen a password yet
+  @Column({ type: 'varchar', nullable: true })
+  passwordHash!: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   designation!: string | null;

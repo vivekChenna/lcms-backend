@@ -5,6 +5,7 @@ import { buildApp } from '../../../src/app';
 import type { ObjectStorage } from '../../../src/shared/storage/object-storage';
 import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from '../../../src/modules/documents/upload-config';
 import type { SecurityConfig } from '../../../src/config/security';
+import type { Mailer } from '../../../src/modules/notifications/email/mailer';
 import { InMemoryObjectStorage } from './in-memory-storage';
 import { AUDITED_ROUTES, registerMutatingRoutes } from './audit-manifest';
 
@@ -40,6 +41,8 @@ export function buildTestApp(
     uploadConfig?: Partial<UploadConfig>;
     exportRowCap?: number;
     security?: Partial<SecurityConfig>;
+    mailer?: Mailer;
+    frontendUrl?: string;
     extraAuditedRoutes?: Record<string, string>;
     exemptRoutes?: string[];
   } = {},
@@ -48,6 +51,8 @@ export function buildTestApp(
     storage: options.storage ?? new InMemoryObjectStorage(),
     uploadConfig: { ...DEFAULT_UPLOAD_CONFIG, ...options.uploadConfig },
     exportRowCap: options.exportRowCap,
+    mailer: options.mailer ?? null,
+    ...(options.frontendUrl ? { frontendUrl: options.frontendUrl } : {}),
     security: { ...TEST_SECURITY, ...options.security, cookie: { ...TEST_SECURITY.cookie, ...options.security?.cookie } },
   });
 

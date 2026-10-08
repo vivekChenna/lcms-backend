@@ -12,6 +12,9 @@ export default fp(async function rateLimitPlugin(app: FastifyInstance) {
   await app.register(fastifyRateLimit, { global: false });
 });
 
+// Spending a link: the token is 256 random bits, so guessing is hopeless; this only blunts abuse.
+export const setPasswordRateLimit = { max: 10, timeWindow: '1 minute', hook: 'preHandler' as const };
+
 export const loginRateLimit = {
   max: 5,
   timeWindow: '1 minute',

@@ -2,8 +2,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Role, RoleName } from './entities/role.entity';
 import { UserRole } from './entities/user-role.entity';
-import { hashPassword } from '../../shared/password';
-import { revokeAllRefreshTokens } from '../auth/auth.service';
+import { sendPasswordLink, sendPasswordLinkAsAdmin, type PasswordLinkDeps } from '../auth/password-links';
 import { logAuditEvent } from '../audit/audit.service';
 import { Department } from '../master-data/entities/department.entity';
 import { OrgEntity } from '../master-data/entities/org-entity.entity';
@@ -22,6 +21,7 @@ export type UserWithRole = {
   entityId: string | null;
   businessUnitId: string | null;
   isActive: boolean;
+  isInvited: boolean;
   role: RoleName;
   createdAt: string;
   updatedAt: string;
@@ -38,6 +38,7 @@ function toUserWithRole(user: User, role: RoleName): UserWithRole {
     entityId: user.entityId,
     businessUnitId: user.businessUnitId,
     isActive: user.isActive,
+    isInvited: user.passwordHash === null,
     role,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
@@ -58,7 +59,6 @@ export async function assignRole(
 export type CreateUserInput = {
   fullName: string;
   email: string;
-  password: string;
   designation?: string;
   phone?: string;
   departmentId?: string;
@@ -91,10 +91,11 @@ async function assertValidOrgReferences(
 }
 
 export async function createUser(
-  dataSource: DataSource,
+  deps: PasswordLinkDeps,
   actorId: string,
   input: CreateUserInput,
-): Promise<UserWithRole> {
+): Promise<UserWithRole & { inviteEmailSent: boolean }> {
+  const { dataSource } = deps;
   const email = input.email.toLowerCase();
   const userRepo = dataSource.getRepository(User);
 
@@ -104,8 +105,6 @@ export async function createUser(
   }
 
   await assertValidOrgReferences(dataSource, input);
-
-  const passwordHash = await hashPassword(input.password);
 
   // The user row and its role row are two writes that both have to land for
   // the user to be usable at all: loadAuthenticatedUser (every login, every
@@ -122,7 +121,8 @@ export async function createUser(
       manager.getRepository(User).create({
         fullName: input.fullName,
         email,
-        passwordHash,
+        // no password: the person chooses their own from the emailed link
+        passwordHash: null,
         designation: input.designation ?? null,
         phone: input.phone ?? null,
         departmentId: input.departmentId ?? null,
@@ -144,7 +144,9 @@ export async function createUser(
     afterValue: { id: user.id, email: user.email, role: 'requester' },
   });
 
-  return toUserWithRole(user, 'requester');
+  const inviteEmailSent = await sendPasswordLink(deps, user, 'invite', { actorId, action: 'user.password_link_sent' });
+
+  return { ...toUserWithRole(user, 'requester'), inviteEmailSent };
 }
 
 export type ListUsersQuery = PaginationQuery & { role?: RoleName; isActive?: boolean; search?: string };
@@ -347,25 +349,14 @@ export async function updateUser(
   return toUserWithRole(user, role.name);
 }
 
-export async function resetPassword(
-  dataSource: DataSource,
-  actorId: string,
-  userId: string,
-  newPassword: string,
-): Promise<void> {
-  const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOne({ where: { id: userId } });
+/** Admin: email an active user a link to choose a new password (admins never set one). */
+export async function sendUserPasswordLink(deps: PasswordLinkDeps, actorId: string, userId: string): Promise<void> {
+  const user = await deps.dataSource.getRepository(User).findOne({ where: { id: userId } });
   if (!user) {
     throw new NotFoundError('User not found');
   }
-
-  const passwordHash = await hashPassword(newPassword);
-  await userRepo.update({ id: userId }, { passwordHash });
-  await revokeAllRefreshTokens(dataSource, userId);
-
-  await logAuditEvent(dataSource, {
-    actorId,
-    action: 'user.password_reset',
-    afterValue: { userId, email: user.email },
-  });
+  if (!user.isActive) {
+    throw new ConflictError('This user is deactivated. Activate them before sending a password link.');
+  }
+  await sendPasswordLinkAsAdmin(deps, actorId, user);
 }

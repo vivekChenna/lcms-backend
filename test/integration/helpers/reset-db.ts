@@ -27,6 +27,7 @@ const RESET_TABLES_IN_ORDER = [
   'documents',
   'information_requests',
   'refresh_tokens',
+  'password_links',
   'user_roles',
   'routing_rules',
   'cases',

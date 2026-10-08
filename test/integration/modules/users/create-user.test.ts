@@ -39,7 +39,7 @@ describe('POST /users', () => {
       method: 'POST',
       url: '/users',
       headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Jane Requester', email: 'Jane@Algihaz.local', password: 'Password123!' },
+      payload: { fullName: 'Jane Requester', email: 'Jane@Algihaz.local' },
     });
 
     expect(res.statusCode).toBe(201);
@@ -62,14 +62,14 @@ describe('POST /users', () => {
       method: 'POST',
       url: '/users',
       headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Jane Requester', email: 'jane@algihaz.local', password: 'Password123!' },
+      payload: { fullName: 'Jane Requester', email: 'jane@algihaz.local' },
     });
 
     const res = await app.inject({
       method: 'POST',
       url: '/users',
       headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Jane Duplicate', email: 'Jane@Algihaz.local', password: 'Password123!' },
+      payload: { fullName: 'Jane Duplicate', email: 'Jane@Algihaz.local' },
     });
 
     expect(res.statusCode).toBe(409);
@@ -86,14 +86,14 @@ describe('POST /users', () => {
       method: 'POST',
       url: '/users',
       headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Someone', email: 'someone@algihaz.local', password: 'Password123!' },
+      payload: { fullName: 'Someone', email: 'someone@algihaz.local' },
     });
 
     expect(res.statusCode).toBe(403);
     await app.close();
   });
 
-  it('rejects a password shorter than 8 characters', async () => {
+  it('rejects a malformed email address', async () => {
     const app = buildTestApp(ds);
     await app.ready();
     const token = adminToken(app);
@@ -102,7 +102,7 @@ describe('POST /users', () => {
       method: 'POST',
       url: '/users',
       headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Someone', email: 'someone@algihaz.local', password: 'short' },
+      payload: { fullName: 'Someone', email: 'not-an-email' },
     });
 
     expect(res.statusCode).toBe(400);
@@ -121,7 +121,6 @@ describe('POST /users', () => {
       payload: {
         fullName: 'Someone',
         email: 'someone2@algihaz.local',
-        password: 'Password123!',
         departmentId: '00000000-0000-0000-0000-000000000000',
       },
     });
@@ -147,7 +146,7 @@ describe('POST /users', () => {
         method: 'POST',
         url: '/users',
         headers: { authorization: `Bearer ${token}` },
-        payload: { fullName: 'Should Not Exist', email: 'rollback-check@algihaz.local', password: 'Password123!' },
+        payload: { fullName: 'Should Not Exist', email: 'rollback-check@algihaz.local' },
       });
 
       expect(res.statusCode).toBe(500);

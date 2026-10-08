@@ -39,7 +39,10 @@ async function main(): Promise<void> {
 
   const uploadConfig = parseUploadConfig(env.UPLOAD_MAX_BYTES, env.UPLOAD_ALLOWED_EXTENSIONS);
   await AppDataSource.initialize();
-  const app = buildApp(AppDataSource, { storage, uploadConfig });
+  if (!env.FRONTEND_URL) {
+    console.warn('WARNING: FRONTEND_URL is not set, so invitation and password-reset emails cannot be sent.');
+  }
+  const app = buildApp(AppDataSource, { storage, uploadConfig, mailer, frontendUrl: env.FRONTEND_URL });
   const emailWorker = mailer
     ? startEmailWorker({
         dataSource: AppDataSource,

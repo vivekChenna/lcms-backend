@@ -7,6 +7,13 @@ export const loginBodySchema = z.object({
 
 export const refreshBodySchema = z.object({ refreshToken: z.string().min(1).optional() }).optional();
 
+export const forgotPasswordBodySchema = z.object({ email: z.string().email() });
+
+export const setPasswordBodySchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
 export const changePasswordBodySchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),

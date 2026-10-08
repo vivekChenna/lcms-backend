@@ -5,7 +5,7 @@ import { buildTestApp } from '../../helpers/build-test-app';
 import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
 
-describe('PATCH /users/:id, PATCH /users/:id/activate, PATCH /users/:id/reset-password (code review finding — no way to reactivate, edit, or reset a password)', () => {
+describe('PATCH /users/:id, PATCH /users/:id/activate (code review finding — no way to reactivate or edit a user)', () => {
   let ds: DataSource;
   let adminId: string;
 
@@ -131,43 +131,7 @@ describe('PATCH /users/:id, PATCH /users/:id/activate, PATCH /users/:id/reset-pa
     await app.close();
   });
 
-  it("admin resets a user's password, which revokes their existing refresh tokens", async () => {
-    const app = buildTestApp(ds);
-    await app.ready();
-    const token = adminToken(app);
-
-    const created = await app.inject({
-      method: 'POST',
-      url: '/users',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { fullName: 'Jane', email: 'jane5@algihaz.local', password: 'OldPassword123!' },
-    });
-    const userId = created.json().id;
-
-    const login = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'jane5@algihaz.local', password: 'OldPassword123!' } });
-    const { refreshToken } = login.json();
-
-    const reset = await app.inject({
-      method: 'PATCH',
-      url: `/users/${userId}/reset-password`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { newPassword: 'NewPassword123!' },
-    });
-    expect(reset.statusCode).toBe(204);
-
-    const oldLoginAttempt = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'jane5@algihaz.local', password: 'OldPassword123!' } });
-    expect(oldLoginAttempt.statusCode).toBe(401);
-
-    const newLoginAttempt = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'jane5@algihaz.local', password: 'NewPassword123!' } });
-    expect(newLoginAttempt.statusCode).toBe(200);
-
-    const refreshAttempt = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refreshToken } });
-    expect(refreshAttempt.statusCode).toBe(401);
-
-    await app.close();
-  });
-
-  it('rejects non-admin access to activate/update/reset-password', async () => {
+  it('rejects non-admin access to activate/update', async () => {
     const app = buildTestApp(ds);
     await app.ready();
     const requesterId = await seedUserWithRole(ds, 'requester');
@@ -178,9 +142,6 @@ describe('PATCH /users/:id, PATCH /users/:id/activate, PATCH /users/:id/reset-pa
 
     const update = await app.inject({ method: 'PATCH', url: `/users/${requesterId}`, headers: { authorization: `Bearer ${requesterToken}` }, payload: { fullName: 'X' } });
     expect(update.statusCode).toBe(403);
-
-    const reset = await app.inject({ method: 'PATCH', url: `/users/${requesterId}/reset-password`, headers: { authorization: `Bearer ${requesterToken}` }, payload: { newPassword: 'Whatever123!' } });
-    expect(reset.statusCode).toBe(403);
 
     await app.close();
   });

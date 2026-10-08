@@ -49,6 +49,11 @@ pnpm dev                    # http://localhost:4000
 **Port.** `.env.example` says `PORT=3000`, but the frontend defaults to `http://localhost:4000`.
 Either set `PORT=4000` in `.env` (what this project does) or change `VITE_API_BASE_URL` in the frontend.
 
+**Frontend address.** `FRONTEND_URL` is the address people open the app on; every invitation and
+password-reset email links to `${FRONTEND_URL}/set-password?token=...`. It must be reachable by the
+recipient (in production, the real hostname, not `localhost`). Without it the backend logs a warning
+at startup and reports invitation emails as not sent.
+
 **CORS.** `CORS_ORIGINS` must list the exact origin the frontend is served from, including the port.
 If it does not, the browser blocks every API call and the app shows "This page didn't load".
 Vite uses 5173 and falls back to 5174, 5175… when the port is taken, so check the address it prints.
@@ -67,7 +72,11 @@ npm run dev                 # http://localhost:5173
 
 ## 4. Demo accounts
 
-All use the password `Password123!`.
+The seeded demo accounts all use the password `Password123!` (they are created directly, not invited).
+Any account an admin adds through the app has **no password**: the person gets an email with a link,
+valid for 48 hours and usable once, and chooses their own. In development that email appears in MailHog
+(http://localhost:8025). An admin can resend the link from the users table, and anyone can use
+"Forgot password?" on the sign-in page.
 
 | Role                | Email                          |
 |---------------------|--------------------------------|

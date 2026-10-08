@@ -22,6 +22,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().min(1).optional(),
   MAIL_FROM: z.string().min(1).optional(),
+  // Public address of the frontend, used to build the links in password emails (no trailing slash)
+  FRONTEND_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().default(''),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
