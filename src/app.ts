@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import { runInRequestContext } from './db/request-context';
 import { registerErrorHandler } from './plugins/error-handler';
 import swaggerPlugin from './plugins/swagger';
 import rateLimitPlugin from './plugins/rate-limit';
@@ -54,6 +55,10 @@ export function buildApp(dataSource: DataSource, options: AppOptions): FastifyIn
   app.decorate('security', security);
   app.decorate('mailer', options.mailer ?? null);
   app.decorate('frontendUrl', options.frontendUrl);
+  // Every request gets its own database context (BRD AC-03, see src/db/request-context.ts). The user is
+  // filled in by the authentication step; until then, and on public routes, the request sees nothing in
+  // the row-level-secured tables.
+  app.addHook('onRequest', (_request, _reply, done) => runInRequestContext(done));
   if (security.corsOrigins.length === 0) {
     app.log.warn('CORS_ORIGINS is empty: cookie-authenticated writes (POST/PATCH/PUT/DELETE) will be rejected with 403 CSRF_BLOCKED until CORS_ORIGINS lists the frontend origin, even when the frontend is served from the same origin as the API.');
   }

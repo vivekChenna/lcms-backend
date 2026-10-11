@@ -13,6 +13,7 @@ import { CreateDocumentsAndComments1700000012000 } from './1700000012000-create-
 import { CreateNotifications1700000013000 } from './1700000013000-create-notifications';
 import { AddIntakeFieldsToCases1700000014000 } from './1700000014000-add-intake-fields-to-cases';
 import { AddPasswordLinks1700000015000 } from './1700000015000-add-password-links';
+import { RowLevelSecurity1700000016000 } from './1700000016000-row-level-security';
 
 export const migrations = [
   CreateUsersAndRoles1700000001000,
@@ -30,4 +31,5 @@ export const migrations = [
   CreateNotifications1700000013000,
   AddIntakeFieldsToCases1700000014000,
   AddPasswordLinks1700000015000,
+  RowLevelSecurity1700000016000,
 ];

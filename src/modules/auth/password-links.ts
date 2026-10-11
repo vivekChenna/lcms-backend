@@ -4,6 +4,7 @@ import { PasswordLink, type PasswordLinkPurpose } from './entities/password-link
 import { RefreshToken } from './entities/refresh-token.entity';
 import { generateOpaqueToken, hashToken } from './auth.service';
 import { logAuditEvent } from '../audit/audit.service';
+import { setRequestUser } from '../../db/request-context';
 import { hashPassword } from '../../shared/password';
 import { ServiceUnavailableError, ValidationError } from '../../shared/errors';
 import type { Mailer } from '../notifications/email/mailer';
@@ -79,6 +80,8 @@ export async function sendPasswordLink(
       emailSent = false;
     }
   }
+  // the audit row names this person as the actor; the database must let them see their own entry
+  setRequestUser(audit.actorId);
   await logAuditEvent(dataSource, {
     actorId: audit.actorId,
     action: audit.action,
@@ -133,6 +136,10 @@ export async function setPasswordWithToken(dataSource: DataSource, token: string
     }
     await manager.getRepository(User).update({ id: user.id }, { passwordHash });
     await manager.getRepository(RefreshToken).update({ userId: user.id, revokedAt: IsNull() }, { revokedAt: new Date() });
+    // the one-time link proved who this is; the audit row names them as the actor
+    // (this transaction already holds a connection, so tell the database now as well as the context)
+    setRequestUser(user.id);
+    await manager.query(`SELECT set_config('app.user_id', $1, true)`, [user.id]);
     await logAuditEvent(manager, {
       actorId: user.id,
       action: 'user.password_set',

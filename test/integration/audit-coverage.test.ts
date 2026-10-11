@@ -54,7 +54,7 @@ describe('audit coverage guard', () => {
     const actorId = await seedUserWithRole(ds, 'admin');
     app.register(async (instance) => {
       instance.post('/__test/no-audit', async () => ({ ok: true }));
-      instance.post('/__test/with-audit', async () => {
+      instance.post('/__test/with-audit', { preHandler: [instance.authenticate] }, async () => {
         await logAuditEvent(instance.dataSource, { actorId, action: 'test.event' });
         return { ok: true };
       });

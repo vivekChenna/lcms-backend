@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { buildApp } from './app';
 import { AppDataSource } from './db/data-source';
+import { installRowLevelSecurity } from './db/row-level-security';
 import { loadEnv } from './config/env';
 import { createS3StorageFromEnv } from './shared/storage/s3-object-storage';
 import { UnavailableObjectStorage } from './shared/storage/unavailable-object-storage';
@@ -39,6 +40,8 @@ async function main(): Promise<void> {
 
   const uploadConfig = parseUploadConfig(env.UPLOAD_MAX_BYTES, env.UPLOAD_ALLOWED_EXTENSIONS);
   await AppDataSource.initialize();
+  // BRD AC-03: the database enforces who may see which rows. Mandatory in production.
+  await installRowLevelSecurity(AppDataSource, { required: env.NODE_ENV === 'production' });
   if (!env.FRONTEND_URL) {
     console.warn('WARNING: FRONTEND_URL is not set, so invitation and password-reset emails cannot be sent.');
   }

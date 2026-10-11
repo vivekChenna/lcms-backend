@@ -7,6 +7,7 @@ import type { AuthenticatedUser } from '../shared/rbac';
 import { User } from '../modules/users/entities/user.entity';
 import { loadAuthenticatedUser } from '../modules/auth/auth.service';
 import { ACCESS_COOKIE } from '../config/security';
+import { setRequestUser } from '../db/request-context';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -66,6 +67,8 @@ export default fp(async function authPlugin(app: FastifyInstance) {
     if (!user.isActive) {
       throw new UnauthorizedError('Account is deactivated');
     }
+    // from here on this request's queries run as this user (row-level security, BRD AC-03)
+    setRequestUser(user.id);
     request.user = await loadAuthenticatedUser(app.dataSource, user);
   });
 });

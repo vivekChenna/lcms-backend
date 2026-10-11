@@ -6,6 +6,7 @@ import type { ObjectStorage } from '../../../src/shared/storage/object-storage';
 import { DEFAULT_UPLOAD_CONFIG, type UploadConfig } from '../../../src/modules/documents/upload-config';
 import type { SecurityConfig } from '../../../src/config/security';
 import type { Mailer } from '../../../src/modules/notifications/email/mailer';
+import { installRowLevelSecurity } from '../../../src/db/row-level-security';
 import { InMemoryObjectStorage } from './in-memory-storage';
 import { AUDITED_ROUTES, registerMutatingRoutes } from './audit-manifest';
 
@@ -54,6 +55,14 @@ export function buildTestApp(
     mailer: options.mailer ?? null,
     ...(options.frontendUrl ? { frontendUrl: options.frontendUrl } : {}),
     security: { ...TEST_SECURITY, ...options.security, cookie: { ...TEST_SECURITY.cookie, ...options.security?.cookie } },
+  });
+
+  // Every HTTP test runs under row-level security (BRD AC-03), exactly as the real server does, so a
+  // query that would leak rows fails here instead of passing because the test connection is all-powerful.
+  // (Tests that never migrate the database, such as /health, simply run without it.)
+  // Seeding and assertions made directly through the data source (outside a request) stay unrestricted.
+  app.addHook('onReady', async () => {
+    await installRowLevelSecurity(dataSource, { required: false, warn: () => {} });
   });
 
   // Route modules load during ready(), so this onRoute hook sees every route.

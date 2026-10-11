@@ -59,6 +59,11 @@ If it does not, the browser blocks every API call and the app shows "This page d
 Vite uses 5173 and falls back to 5174, 5175… when the port is taken, so check the address it prints.
 Restart the backend after editing `.env` — it is only read at startup.
 
+**Row-level security.** `pnpm migration:run` also switches on database-level access rules (BRD AC-03). If
+the backend prints `Row-level security is NOT active`, the migration has not been run on that database.
+In production the backend refuses to start without it. How it works and how to extend it:
+[row-level-security.md](row-level-security.md).
+
 Check it is up: `curl http://localhost:4000/health` returns `{"status":"ok"}`. API docs: http://localhost:4000/docs.
 
 ## 3. Frontend
