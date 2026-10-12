@@ -9,6 +9,11 @@ const envSchema = z.object({
   // server, where other projects each already get their own schema in one shared
   // database). Unset leaves every connection on its default schema, exactly as before.
   DB_SCHEMA: z.string().min(1).optional(),
+  // "drona": sign-in happens through the DronaHQ container's own identity (an email
+  // the container already vouches for -- see /auth/drona), not a password. Turns
+  // password sign-in off (/auth/login refuses while this is set). "local" (default)
+  // is the existing email+password flow, unchanged.
+  AUTH_STRATEGY: z.enum(['local', 'drona']).default('local'),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),

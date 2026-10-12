@@ -88,6 +88,27 @@ export async function login(
   return { user: authenticatedUser, refreshToken };
 }
 
+// AUTH_STRATEGY=drona: the DronaHQ container has already verified this person's
+// identity, so there is no password to check -- only that an active account
+// exists for the email the container supplied. Unlike L0-L1-Platform's pilot,
+// LCMS has no self-service "request access" flow (accounts are created by an
+// admin, who emails the new person an invite link), so an unrecognised email
+// is a hard failure here, not an auto-filed pending request.
+export async function droneSignIn(
+  dataSource: DataSource,
+  refreshTokenExpiresDays: number,
+  email: string,
+): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
+  const user = await dataSource.getRepository(User).findOne({ where: { email: email.toLowerCase() } });
+  if (!user || !user.isActive) {
+    throw new UnauthorizedError('No LCMS account exists for this email. Ask an admin to add you.');
+  }
+
+  const authenticatedUser = await loadAuthenticatedUser(dataSource, user);
+  const refreshToken = await issueRefreshToken(dataSource, user.id, refreshTokenExpiresDays);
+  return { user: authenticatedUser, refreshToken };
+}
+
 export async function logout(dataSource: DataSource, presentedToken: string): Promise<void> {
   await dataSource.getRepository(RefreshToken).update({ tokenHash: hashToken(presentedToken) }, { revokedAt: new Date() });
 }
