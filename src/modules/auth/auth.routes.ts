@@ -64,7 +64,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     config: { rateLimit: loginRateLimit },
     schema: { tags: ['Auth'], body: forgotPasswordBodySchema },
   }, async (request, reply) => {
-    const deps = { dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl };
+    const deps = { dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl, authStrategy: env.AUTH_STRATEGY };
     void requestPasswordLink(deps, request.body.email).catch((error) => request.log.error(error, 'password link request failed'));
     reply.status(202).send({ message: 'If that account exists, we have emailed it a link.' });
   });

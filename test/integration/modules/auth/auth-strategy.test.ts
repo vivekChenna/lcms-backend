@@ -4,6 +4,7 @@ import { buildTestDataSource } from '../../helpers/test-data-source';
 import { buildTestApp } from '../../helpers/build-test-app';
 import { resetDatabase } from '../../helpers/reset-db';
 import { seedUserWithRole } from '../../helpers/seed-user';
+import { RecordingMailer } from '../../helpers/recording-mailer';
 
 describe('AUTH_STRATEGY (GET /auth/config, POST /auth/drona)', () => {
   let ds: DataSource;
@@ -158,6 +159,63 @@ describe('AUTH_STRATEGY (GET /auth/config, POST /auth/drona)', () => {
       });
 
       expect(res.statusCode).toBe(403);
+      await app.close();
+    });
+  });
+
+  describe('password links while AUTH_STRATEGY=drona', () => {
+    let adminId: string;
+    let mailer: RecordingMailer;
+
+    beforeEach(async () => {
+      adminId = await seedUserWithRole(ds, 'admin');
+      mailer = new RecordingMailer();
+      process.env.AUTH_STRATEGY = 'drona';
+    });
+
+    const adminToken = (app: ReturnType<typeof buildTestApp>) =>
+      app.signAccessToken({ id: adminId, role: 'admin', departmentId: null, entityId: null, businessUnitId: null });
+
+    it('creating a user sends no invite email -- the account already signs in via /auth/drona with no password', async () => {
+      const app = buildTestApp(ds, { mailer, frontendUrl: 'https://lcms.example.com' });
+      await app.ready();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users',
+        headers: { authorization: `Bearer ${adminToken(app)}` },
+        payload: { fullName: 'Drona User', email: 'drona-new@algihaz.local' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ isInvited: true, inviteEmailSent: false });
+      expect(mailer.sent).toHaveLength(0);
+
+      // the account is immediately usable -- no password, no link needed
+      const signIn = await app.inject({
+        method: 'POST',
+        url: '/auth/drona',
+        payload: { email: 'drona-new@algihaz.local' },
+      });
+      expect(signIn.statusCode).toBe(200);
+      await app.close();
+    });
+
+    it('admin "resend password link" gives a clear, specific error instead of a misleading delivery failure', async () => {
+      await seedUserWithRole(ds, 'requester', { email: 'drona-existing@algihaz.local' });
+      const app = buildTestApp(ds, { mailer, frontendUrl: 'https://lcms.example.com' });
+      await app.ready();
+      const [{ id: userId }] = await ds.query(`SELECT id FROM users WHERE email = 'drona-existing@algihaz.local'`);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/users/${userId}/send-password-link`,
+        headers: { authorization: `Bearer ${adminToken(app)}` },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.message).toMatch(/not used while sign-in is through Drona/i);
+      expect(mailer.sent).toHaveLength(0);
       await app.close();
     });
   });
