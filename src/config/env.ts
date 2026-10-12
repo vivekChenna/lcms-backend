@@ -5,6 +5,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1),
+  // A dedicated Postgres schema within a shared database (e.g. the Algihaz UAT/prod
+  // server, where other projects each already get their own schema in one shared
+  // database). Unset leaves every connection on its default schema, exactly as before.
+  DB_SCHEMA: z.string().min(1).optional(),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),

@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { AppDataSource } from './data-source';
+import { AppDataSource, ensureSchemaExists } from './data-source';
 
 async function main(): Promise<void> {
   const command = process.argv[2];
@@ -8,6 +8,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  await ensureSchemaExists();
   await AppDataSource.initialize();
   if (command === 'run') {
     const applied = await AppDataSource.runMigrations();
