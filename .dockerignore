@@ -1,0 +1,13 @@
+node_modules
+dist
+test
+docs
+decisions
+.env
+.env.*
+!.env.example
+.git
+.archify
+*.docx
+*.xlsx
+docker-compose*.yml
