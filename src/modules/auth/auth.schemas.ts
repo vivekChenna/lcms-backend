@@ -5,6 +5,10 @@ export const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
+export const dronaSignInBodySchema = z.object({ email: z.string().trim().toLowerCase().email().max(255) });
+
+export const authConfigSchema = z.object({ mode: z.enum(['local', 'drona']), localLoginAllowed: z.boolean() });
+
 export const refreshBodySchema = z.object({ refreshToken: z.string().min(1).optional() }).optional();
 
 export const forgotPasswordBodySchema = z.object({ email: z.string().email() });

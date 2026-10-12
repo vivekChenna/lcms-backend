@@ -88,6 +88,24 @@ export async function login(
   return { user: authenticatedUser, refreshToken };
 }
 
+/**
+ * Drona sign-in: the DronaHQ container reports the profile email and the user's existing, active account is
+ * signed in. Nothing is created, and the email is not proof of who is asking (see docs/drona-sign-in.md).
+ */
+export async function loginWithDronaEmail(
+  dataSource: DataSource,
+  refreshTokenExpiresDays: number,
+  email: string,
+): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
+  const user = await dataSource.getRepository(User).findOne({ where: { email: email.toLowerCase() } });
+  if (!user || !user.isActive) {
+    throw new UnauthorizedError('No active LCMS account matches this Drona profile. Contact your administrator.');
+  }
+  const authenticatedUser = await loadAuthenticatedUser(dataSource, user);
+  const refreshToken = await issueRefreshToken(dataSource, user.id, refreshTokenExpiresDays);
+  return { user: authenticatedUser, refreshToken };
+}
+
 export async function logout(dataSource: DataSource, presentedToken: string): Promise<void> {
   await dataSource.getRepository(RefreshToken).update({ tokenHash: hashToken(presentedToken) }, { revokedAt: new Date() });
 }

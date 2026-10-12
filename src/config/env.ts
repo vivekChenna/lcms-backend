@@ -28,6 +28,8 @@ const envSchema = z.object({
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   COOKIE_DOMAIN: z.string().min(1).optional(),
+  // 'drona': sign in through the DronaHQ container (the browser sends the Drona profile email) and turn password login off
+  AUTH_STRATEGY: z.enum(['local', 'drona']).default('local'),
 });
 
 export type Env = z.infer<typeof envSchema>;
