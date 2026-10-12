@@ -1,7 +1,9 @@
-import type { DataSource, EntityManager } from 'typeorm';
+import { Brackets, type DataSource, type EntityManager } from 'typeorm';
 import { InformationRequest } from './entities/information-request.entity';
 import { Case } from '../cases/entities/case.entity';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/entities/user-role.entity';
+import { Role } from '../users/entities/role.entity';
 import { ForbiddenError, NotFoundError, ValidationError, ConflictError } from '../../shared/errors';
 import { logAuditEvent } from '../audit/audit.service';
 import { markCaseWaitingOnInput, markCaseInProgress } from '../cases/cases.workflow.service';
@@ -206,4 +208,33 @@ export async function reopenInformationRequest(
 export async function listInformationRequestsForCase(dataSource: DataSource, actor: Actor, caseId: string): Promise<InformationRequest[]> {
   await getCaseById(dataSource, actor, caseId);
   return dataSource.getRepository(InformationRequest).find({ where: { caseId }, order: { createdAt: 'DESC' } });
+}
+
+export type ResponderCandidate = { id: string; fullName: string; designation: string | null; role: string | null };
+
+// Who a legal representative may ask for information: the people of the case's own department
+// (they can already see the case), plus the person who raised it. The asker is never offered.
+export async function listResponderCandidates(dataSource: DataSource, actor: Actor, caseId: string): Promise<ResponderCandidate[]> {
+  const caseRow = await getCaseById(dataSource, actor, caseId);
+  const rows = await dataSource
+    .getRepository(User)
+    .createQueryBuilder('u')
+    .leftJoin(UserRole, 'ur', 'ur."userId" = u.id')
+    .leftJoin(Role, 'role', 'role.id = ur."roleId"')
+    .select('u.id', 'id')
+    .addSelect('u."fullName"', 'fullName')
+    .addSelect('u.designation', 'designation')
+    .addSelect('role.name', 'role')
+    .where('u."isActive" = true')
+    .andWhere('u.id != :actorId', { actorId: actor.id })
+    .andWhere(
+      new Brackets((qb) => {
+        qb.where('u."departmentId" = :departmentId', { departmentId: caseRow.departmentId }).orWhere('u.id = :requesterId', {
+          requesterId: caseRow.requesterId,
+        });
+      }),
+    )
+    .orderBy('u."fullName"', 'ASC')
+    .getRawMany<ResponderCandidate>();
+  return rows;
 }

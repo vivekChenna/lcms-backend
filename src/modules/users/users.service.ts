@@ -360,3 +360,20 @@ export async function sendUserPasswordLink(deps: PasswordLinkDeps, actorId: stri
   }
   await sendPasswordLinkAsAdmin(deps, actorId, user);
 }
+
+// Everyone who can hold a case: shown in the Cases filter, so it is open to every signed-in role.
+export async function listCaseHolders(dataSource: DataSource) {
+  return dataSource
+    .getRepository(User)
+    .createQueryBuilder('u')
+    .innerJoin(UserRole, 'ur', 'ur."userId" = u.id')
+    .innerJoin(Role, 'role', 'role.id = ur."roleId"')
+    .select('u.id', 'id')
+    .addSelect('u."fullName"', 'fullName')
+    .addSelect('u.designation', 'designation')
+    .addSelect('role.name', 'role')
+    .where('u."isActive" = true')
+    .andWhere('role.name IN (:...roles)', { roles: ['legal_rep', 'legal_manager'] })
+    .orderBy('u."fullName"', 'ASC')
+    .getRawMany<{ id: string; fullName: string; designation: string | null; role: string }>();
+}

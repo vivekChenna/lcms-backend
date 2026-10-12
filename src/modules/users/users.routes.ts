@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
-import { createUser, listUsers, getUserById, updateUserRole, deactivateUser, activateUser, updateUser, sendUserPasswordLink } from './users.service';
+import { createUser, listUsers, getUserById, updateUserRole, deactivateUser, activateUser, updateUser, sendUserPasswordLink, listCaseHolders } from './users.service';
 import { buildPaginatedResponse } from '../../shared/pagination';
 import {
   createUserBodySchema,
@@ -13,6 +13,7 @@ import {
   updateUserBodySchema,
   createUserResponseSchema,
   sendPasswordLinkResponseSchema,
+  caseHolderListResponseSchema,
 } from './users.schemas';
 
 export default async function usersRoutes(app: FastifyInstance): Promise<void> {
@@ -33,6 +34,11 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
     const { items, total } = await listUsers(app.dataSource, request.query);
     return buildPaginatedResponse(items, total, request.query);
   });
+
+  typedApp.get('/case-holders', {
+    preHandler: [app.authenticate],
+    schema: { tags: ['Users'], security: [{ bearerAuth: [] }], response: { 200: caseHolderListResponseSchema } },
+  }, async () => listCaseHolders(app.dataSource));
 
   typedApp.get('/users/:id', {
     preHandler: [app.authenticate, requireRole(['admin', 'legal_manager'])],

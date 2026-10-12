@@ -8,7 +8,7 @@ import type { DataSource } from 'typeorm';
 import type { Case } from './entities/case.entity';
 import { withCaseNames, type CaseNameFields } from './case-names';
 import { acceptAssignment, assignCase, closeCase, rejectAssignment, setEscalation } from './cases.workflow.service';
-import { getCaseById, listCases, listCasesForExport, submitCase, updateCase, updatePriority } from './cases.service';
+import { getCaseById, listCases, listCasesForExport, submitCase, updateCase, updatePriority, updateTargetDates } from './cases.service';
 import {
   assignCaseBodySchema,
   caseIdParamsSchema,
@@ -22,6 +22,7 @@ import {
   rejectAssignmentBodySchema,
   updateCaseBodySchema,
   updatePriorityBodySchema,
+  updateTargetDatesBodySchema,
 } from './cases.schemas';
 
 // toCaseWithSla (Task 4) deliberately keeps returning Date instances for
@@ -232,6 +233,20 @@ export default async function casesRoutes(app: FastifyInstance, opts: { exportRo
       request.params.id,
       { closureSummary: request.body.closureSummary, closureOutcomeId: request.body.closureOutcomeId },
     );
+    return respondCase(app.dataSource, toCaseWithSla(caseRow));
+  });
+
+  typedApp.patch('/cases/:id/target-dates', {
+    preHandler: [app.authenticate, requireRole(['legal_manager', 'admin'])],
+    schema: {
+      tags: ['Cases'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      body: updateTargetDatesBodySchema,
+      response: { 200: caseResponseSchema },
+    },
+  }, async (request) => {
+    const caseRow = await updateTargetDates(app.dataSource, request.user.id, request.params.id, request.body);
     return respondCase(app.dataSource, toCaseWithSla(caseRow));
   });
 

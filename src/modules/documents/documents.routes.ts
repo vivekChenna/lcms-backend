@@ -47,6 +47,7 @@ export function serializeDocument(row: CaseDocument, names: Map<string, UserName
     previousVersionId: row.previousVersionId,
     uploaderId: row.uploaderId,
     uploadedByName: names.get(row.uploaderId)?.fullName ?? null,
+    uploadedByDesignation: names.get(row.uploaderId)?.designation ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

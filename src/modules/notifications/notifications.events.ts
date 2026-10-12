@@ -113,6 +113,22 @@ export async function notifyCaseAssigned(source: NotificationSource, caseRow: Ca
   ]);
 }
 
+// Tells the people on the case, other than whoever changed the dates, that its deadlines moved.
+export async function notifyTargetDatesChanged(
+  source: NotificationSource,
+  caseRow: CaseRef & Pick<Case, 'ackDueAt' | 'resolutionDueAt'>,
+  actorId: string,
+  reason: string,
+): Promise<void> {
+  const day = (date: Date) => date.toISOString().slice(0, 10);
+  const body = `The target dates of case "${caseRow.title}" (${caseRow.referenceNumber}) were changed: acknowledge by ${day(caseRow.ackDueAt)}, resolve by ${day(caseRow.resolutionDueAt)}. Reason: ${reason}`;
+  const title = `Target dates changed for case ${caseRow.referenceNumber}`;
+  await createNotifications(source, 'case.target_dates_changed', caseRow.id, [
+    { userId: caseRow.assignedLegalRepId === actorId ? null : caseRow.assignedLegalRepId, title, body },
+    { userId: caseRow.requesterId === actorId ? null : caseRow.requesterId, title, body },
+  ]);
+}
+
 export async function notifyCaseAccepted(source: NotificationSource, caseRow: CaseRef): Promise<void> {
   await createNotifications(source, 'case.accepted', caseRow.id, [
     {

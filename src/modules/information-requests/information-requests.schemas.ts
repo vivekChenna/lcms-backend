@@ -26,9 +26,11 @@ export const informationRequestResponseSchema = z.object({
   requirementDescription: z.string(),
   raisedById: z.string(),
   raisedByName: z.string().nullable(),
+  raisedByDesignation: z.string().nullable(),
   raisedByRole: z.string().nullable(),
   responderId: z.string(),
   responderName: z.string().nullable(),
+  responderDesignation: z.string().nullable(),
   dueDate: z.string().nullable(),
   status: z.enum(INFO_REQUEST_STATUSES),
   responseText: z.string().nullable(),
@@ -38,3 +40,12 @@ export const informationRequestResponseSchema = z.object({
 });
 
 export const informationRequestListResponseSchema = z.array(informationRequestResponseSchema);
+
+export const responderCandidateListResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    fullName: z.string(),
+    designation: z.string().nullable(),
+    role: z.string().nullable(),
+  }),
+);

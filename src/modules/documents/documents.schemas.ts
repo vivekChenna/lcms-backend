@@ -19,6 +19,7 @@ export const documentResponseSchema = z.object({
   previousVersionId: z.string().nullable(),
   uploaderId: z.string(),
   uploadedByName: z.string().nullable(),
+  uploadedByDesignation: z.string().nullable(),
   createdAt: z.string(),
 });
 export const documentIdParamsSchema = z.object({ id: z.string().uuid() });

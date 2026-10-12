@@ -8,6 +8,7 @@ import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCase, seedCaseMasterData } from '../../helpers/seed-case';
 import { seedCaseWithParties } from '../../helpers/seed-case-scenario';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
+import { seedDocument } from '../../helpers/seed-document';
 import { listNotificationsFor } from '../../helpers/seed-notification';
 import { authHeader } from '../../helpers/auth-header';
 
@@ -189,6 +190,7 @@ describe('notifications created by case actions', () => {
     await app.ready();
     const { repId, requesterId, caseRow } = await seedCaseWithParties(ds);
     const [outcome] = await ds.query(`INSERT INTO closure_outcomes (id, name) VALUES (gen_random_uuid(), $1) RETURNING id`, [`Resolved-${Date.now()}-${Math.random()}`]);
+    await seedDocument(ds, { caseId: caseRow.id, uploaderId: repId, category: 'Closure Document' });
 
     const res = await app.inject({
       method: 'PATCH',

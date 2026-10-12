@@ -40,6 +40,7 @@ async function toPanelItems(dataSource: DataSource, rows: Case[]) {
       resolutionDueAt: withSla.resolutionDueAt.toISOString(),
       slaState: withSla.slaState,
       assignedLegalRepName: (row.assignedLegalRepId ? names.get(row.assignedLegalRepId)?.fullName : null) ?? null,
+      assignedLegalRepDesignation: (row.assignedLegalRepId ? names.get(row.assignedLegalRepId)?.designation : null) ?? null,
     };
   });
 }
@@ -103,7 +104,8 @@ export async function getDashboard(dataSource: DataSource, actor: Actor): Promis
     byStatus,
   };
 
-  if (actor.role === 'legal_rep') {
+  // a manager can hold cases too, so they get the same "my cases" list
+  if (actor.role === 'legal_rep' || actor.role === 'legal_manager') {
     result.myAssignedCases = await assignedOpenPanel(dataSource, actor);
   }
 

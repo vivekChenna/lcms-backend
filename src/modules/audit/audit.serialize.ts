@@ -13,6 +13,7 @@ export async function serializeAuditRows(source: NameSource, rows: AuditLog[]) {
     actorId: row.actorId,
     actorName: users.get(row.actorId)?.fullName ?? null,
     actorRole: users.get(row.actorId)?.role ?? null,
+    actorDesignation: users.get(row.actorId)?.designation ?? null,
     action: row.action,
     beforeValue: row.beforeValue,
     afterValue: row.afterValue,

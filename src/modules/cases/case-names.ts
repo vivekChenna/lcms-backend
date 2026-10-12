@@ -11,6 +11,7 @@ export type CaseNameFields = {
   requesterDesignation: string | null;
   assignedLegalRepName: string | null;
   assignedLegalRepRole: string | null;
+  assignedLegalRepDesignation: string | null;
   categoryName: string | null;
   caseTypeName: string | null;
   departmentName: string | null;
@@ -36,6 +37,7 @@ export async function withCaseNames<T extends Case>(source: NameSource, rows: T[
       requesterDesignation: requester?.designation ?? null,
       assignedLegalRepName: assignee?.fullName ?? null,
       assignedLegalRepRole: assignee?.role ?? null,
+      assignedLegalRepDesignation: assignee?.designation ?? null,
       categoryName: categories.get(row.categoryId) ?? null,
       caseTypeName: types.get(row.caseTypeId) ?? null,
       departmentName: departments.get(row.departmentId) ?? null,

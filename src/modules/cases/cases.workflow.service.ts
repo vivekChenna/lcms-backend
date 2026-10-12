@@ -1,4 +1,4 @@
-import type { DataSource, EntityManager } from 'typeorm';
+import { IsNull, type DataSource, type EntityManager } from 'typeorm';
 import { Case, CaseStatus } from './entities/case.entity';
 import { assertTransition } from './state-machine';
 import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../../shared/errors';
@@ -6,6 +6,7 @@ import { logAuditEvent } from '../audit/audit.service';
 import { assertValidLegalRep } from '../master-data/routing-rules.service';
 import { ClosureOutcome } from '../master-data/entities/closure-outcome.entity';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
+import { CaseDocument } from '../documents/entities/case-document.entity';
 import {
   notifyAssignmentRejected,
   notifyCaseAccepted,
@@ -153,6 +154,14 @@ export async function closeCase(
     });
     if (openRequestCount > 0) {
       throw new ConflictError('Case cannot be closed while an information request is still open (VC-12)');
+    }
+
+    // Closing needs its paperwork: at least one live document filed as a closure document.
+    const closureDocumentCount = await manager.getRepository(CaseDocument).count({
+      where: { caseId: caseRow.id, category: 'Closure Document', deletedAt: IsNull() },
+    });
+    if (closureDocumentCount === 0) {
+      throw new ConflictError('Upload at least one closure document before closing the case');
     }
 
     const before = { id: caseRow.id, status: caseRow.status };

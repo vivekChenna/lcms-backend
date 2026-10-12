@@ -10,6 +10,7 @@ export const panelItemSchema = z.object({
   resolutionDueAt: z.string(),
   slaState: z.enum(SLA_STATES),
   assignedLegalRepName: z.string().nullable(),
+  assignedLegalRepDesignation: z.string().nullable(),
 });
 
 const countSchema = z.number();

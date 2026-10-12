@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { requireRole } from '../../shared/rbac';
 import type { InformationRequest } from './entities/information-request.entity';
-import { raiseInformationRequest, respondToInformationRequest, reopenInformationRequest, listInformationRequestsForCase } from './information-requests.service';
+import { raiseInformationRequest, respondToInformationRequest, reopenInformationRequest, listInformationRequestsForCase, listResponderCandidates } from './information-requests.service';
 import {
   raiseInformationRequestBodySchema,
   respondInformationRequestBodySchema,
@@ -10,6 +10,7 @@ import {
   informationRequestIdParamsSchema,
   informationRequestResponseSchema,
   informationRequestListResponseSchema,
+  responderCandidateListResponseSchema,
 } from './information-requests.schemas';
 import { caseIdParamsSchema } from '../cases/cases.schemas';
 import { loadUserNames, type NameSource, type UserName } from '../../shared/name-lookup';
@@ -24,7 +25,9 @@ export function serializeInformationRequest(row: InformationRequest, names: Map<
     ...row,
     raisedByName: names.get(row.raisedById)?.fullName ?? null,
     raisedByRole: names.get(row.raisedById)?.role ?? null,
+    raisedByDesignation: names.get(row.raisedById)?.designation ?? null,
     responderName: names.get(row.responderId)?.fullName ?? null,
+    responderDesignation: names.get(row.responderId)?.designation ?? null,
     dueDate: row.dueDate ? row.dueDate.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -58,8 +61,26 @@ export default async function informationRequestsRoutes(app: FastifyInstance): P
     return rows.map((row) => serializeInformationRequest(row, names));
   });
 
+  typedApp.get('/cases/:id/information-request-responders', {
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager'])],
+    schema: {
+      tags: ['Information Requests'],
+      security: [{ bearerAuth: [] }],
+      params: caseIdParamsSchema,
+      response: { 200: responderCandidateListResponseSchema },
+    },
+  }, async (request) =>
+    listResponderCandidates(app.dataSource, {
+      id: request.user.id,
+      role: request.user.role,
+      departmentId: request.user.departmentId,
+      entityId: request.user.entityId,
+      businessUnitId: request.user.businessUnitId,
+    }, request.params.id),
+  );
+
   typedApp.post('/cases/:id/information-requests', {
-    preHandler: [app.authenticate, requireRole(['legal_rep'])],
+    preHandler: [app.authenticate, requireRole(['legal_rep', 'legal_manager'])],
     schema: {
       tags: ['Information Requests'],
       security: [{ bearerAuth: [] }],

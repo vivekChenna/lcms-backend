@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 
 export const EXEMPT_ROUTES: Record<string, string> = {
   'POST /auth/login': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
+  'POST /auth/drona': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
   'POST /auth/refresh': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
   'POST /auth/logout': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
   'POST /auth/change-password': 'Authentication events are not audit events in the BRD (AT-01..AT-05, AU-14).',
@@ -20,6 +21,7 @@ export const AUDITED_ROUTES: Record<string, string> = {
   'POST /cases': 'case.submitted',
   'PATCH /cases/:id': 'case.updated',
   'PATCH /cases/:id/priority': 'case.priority_changed',
+  'PATCH /cases/:id/target-dates': 'case.target_dates_changed',
   'PATCH /cases/:id/assign': 'case.assigned',
   'PATCH /cases/:id/accept': 'case.accepted',
   'PATCH /cases/:id/reject': 'case.rejected',

@@ -5,6 +5,7 @@ import { buildTestApp } from '../../helpers/build-test-app';
 import { seedUserWithRole } from '../../helpers/seed-user';
 import { seedCaseMasterData, seedCase } from '../../helpers/seed-case';
 import { seedInformationRequest } from '../../helpers/seed-information-request';
+import { seedDocument } from '../../helpers/seed-document';
 import { resetDatabase } from '../../helpers/reset-db';
 
 describe('PATCH /cases/:id/close', () => {
@@ -40,6 +41,7 @@ describe('PATCH /cases/:id/close', () => {
     const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
     const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
     const outcomeId = await seedOutcome();
+    await seedDocument(ds, { caseId: caseRow.id, uploaderId: repId, category: 'Closure Document' });
     const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
 
     const res = await app.inject({
@@ -54,6 +56,33 @@ describe('PATCH /cases/:id/close', () => {
     expect(res.json().closedAt).not.toBeNull();
     const auditRows = await ds.query(`SELECT action FROM audit_log WHERE action = 'case.closed'`);
     expect(auditRows).toHaveLength(1);
+    await app.close();
+  });
+
+  it('refuses to close without a closure document, and ignores deleted ones and other categories', async () => {
+    await reset();
+    const app = buildTestApp(ds);
+    await app.ready();
+    const master = await seedCaseMasterData(ds);
+    const repId = await seedUserWithRole(ds, 'legal_rep');
+    const requesterId = await seedUserWithRole(ds, 'requester', { departmentId: master.departmentId, entityId: master.entityId });
+    const caseRow = await seedCase(ds, { ...master, requesterId, status: 'In Progress', assignedLegalRepId: repId, assignmentAcceptedAt: new Date() });
+    const outcomeId = await seedOutcome();
+    await seedDocument(ds, { caseId: caseRow.id, uploaderId: repId, category: 'Evidence' });
+    await seedDocument(ds, { caseId: caseRow.id, uploaderId: repId, category: 'Closure Document', deletedAt: new Date() });
+    const token = app.signAccessToken({ id: repId, role: 'legal_rep', departmentId: null, entityId: null, businessUnitId: null });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/cases/${caseRow.id}/close`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { confirm: true, closureSummary: 'Matter resolved via negotiated settlement.', closureOutcomeId: outcomeId },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.message).toMatch(/closure document/i);
+    const [after] = await ds.query(`SELECT status FROM cases WHERE id = $1`, [caseRow.id]);
+    expect(after.status).toBe('In Progress');
     await app.close();
   });
 

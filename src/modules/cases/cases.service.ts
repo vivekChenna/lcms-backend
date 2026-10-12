@@ -11,7 +11,7 @@ import { computeDueDates, toCaseWithSla } from './sla';
 import { generateReferenceNumber } from './reference-number';
 import { evaluateAutoRouting } from './auto-routing';
 import { assignCase } from './cases.workflow.service';
-import { notifyCaseRegistered } from '../notifications/notifications.events';
+import { notifyCaseRegistered, notifyTargetDatesChanged } from '../notifications/notifications.events';
 import { PaginationQuery, paginationToSkipTake } from '../../shared/pagination';
 import { InformationRequest } from '../information-requests/entities/information-request.entity';
 
@@ -429,6 +429,56 @@ export async function updateCase(dataSource: DataSource, actor: Actor, caseId: s
       referenceNumber: caseRow.referenceNumber,
     },
   });
+  return caseRow;
+}
+
+export type UpdateTargetDatesInput = { ackDueAt?: Date; resolutionDueAt?: Date; reason: string };
+
+// A manager or admin moves a case's deadlines (PR-19), e.g. when the work is agreed to take longer.
+// The change is audited with its reason. Both dates must fall after the case was created and the
+// acknowledgement date may not be after the resolution date.
+export async function updateTargetDates(
+  dataSource: DataSource,
+  actorId: string,
+  caseId: string,
+  input: UpdateTargetDatesInput,
+): Promise<Case> {
+  const repo = dataSource.getRepository(Case);
+  const caseRow = await repo.findOne({ where: { id: caseId } });
+  if (!caseRow) {
+    throw new NotFoundError('Case not found');
+  }
+  if (caseRow.status === 'Closed') {
+    throw new ConflictError('Cannot change the target dates of a Closed case');
+  }
+
+  const ackDueAt = input.ackDueAt ?? caseRow.ackDueAt;
+  const resolutionDueAt = input.resolutionDueAt ?? caseRow.resolutionDueAt;
+  if (ackDueAt.getTime() <= caseRow.createdAt.getTime() || resolutionDueAt.getTime() <= caseRow.createdAt.getTime()) {
+    throw new ValidationError('Target dates must be after the case was created');
+  }
+  if (ackDueAt.getTime() > resolutionDueAt.getTime()) {
+    throw new ValidationError('The acknowledgement date cannot be after the resolution date');
+  }
+
+  const before = { id: caseRow.id, ackDueAt: caseRow.ackDueAt, resolutionDueAt: caseRow.resolutionDueAt };
+  caseRow.ackDueAt = ackDueAt;
+  caseRow.resolutionDueAt = resolutionDueAt;
+  await repo.save(caseRow);
+  await logAuditEvent(dataSource, {
+    actorId,
+    caseId: caseRow.id,
+    action: 'case.target_dates_changed',
+    beforeValue: before,
+    afterValue: {
+      id: caseRow.id,
+      ackDueAt: caseRow.ackDueAt,
+      resolutionDueAt: caseRow.resolutionDueAt,
+      reason: input.reason,
+      referenceNumber: caseRow.referenceNumber,
+    },
+  });
+  await notifyTargetDatesChanged(dataSource, caseRow, actorId, input.reason);
   return caseRow;
 }
 

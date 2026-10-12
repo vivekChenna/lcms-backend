@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import 'reflect-metadata';
 import type { DataSource } from 'typeorm';
 import { hashPassword } from '../shared/password';
@@ -12,6 +13,7 @@ import { BusinessUnit } from '../modules/master-data/entities/business-unit.enti
 import { ClosureOutcome } from '../modules/master-data/entities/closure-outcome.entity';
 import { Case } from '../modules/cases/entities/case.entity';
 import { submitCase, type Actor, type CreateCaseInput } from '../modules/cases/cases.service';
+import { CaseDocument } from '../modules/documents/entities/case-document.entity';
 import { assignCase, acceptAssignment, closeCase, setEscalation } from '../modules/cases/cases.workflow.service';
 import { raiseInformationRequest } from '../modules/information-requests/information-requests.service';
 import { createComment } from '../modules/comments/comments.service';
@@ -144,6 +146,22 @@ export async function seedDemo(dataSource: DataSource): Promise<{ users: DemoUse
       advance: async (id) => {
         await assignCase(dataSource, users.manager.id, id, users.rep1.id);
         await acceptAssignment(dataSource, users.rep1.id, id);
+        // closing needs a closure document; the demo file has a record only, so it cannot be downloaded
+        const documentRepo = dataSource.getRepository(CaseDocument);
+        const documentId = randomUUID();
+        await documentRepo.save(
+          documentRepo.create({
+            id: documentId,
+            caseId: id,
+            filename: 'closure-memo.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: 1024,
+            category: 'Closure Document',
+            version: 1,
+            rootDocumentId: documentId,
+            uploaderId: users.rep1.id,
+          }),
+        );
         await closeCase(dataSource, actors.rep1, id, { closureSummary: 'Agreement reviewed and approved with minor edits.', closureOutcomeId: master.resolved.id });
       },
     },

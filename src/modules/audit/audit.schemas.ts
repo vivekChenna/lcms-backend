@@ -22,6 +22,7 @@ export const auditListResponseSchema = z.object({
       caseReference: z.string().nullable(),
       actorId: z.string(),
       actorName: z.string().nullable(),
+      actorDesignation: z.string().nullable(),
       actorRole: z.string().nullable(),
       action: z.string(),
       beforeValue: z.unknown().nullable(),

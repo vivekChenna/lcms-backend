@@ -64,3 +64,7 @@ export const updateUserBodySchema = z.object({
   businessUnitId: z.string().uuid().nullable().optional(),
 });
 
+
+export const caseHolderListResponseSchema = z.array(
+  z.object({ id: z.string(), fullName: z.string(), designation: z.string().nullable(), role: z.string() }),
+);

@@ -64,6 +64,16 @@ export const updatePriorityBodySchema = z.object({
   priority: z.enum(CASE_PRIORITIES),
 });
 
+export const updateTargetDatesBodySchema = z
+  .object({
+    ackDueAt: z.coerce.date().optional(),
+    resolutionDueAt: z.coerce.date().optional(),
+    reason: z.string().trim().min(3, 'Give a brief reason (at least 3 characters)'),
+  })
+  .refine((body) => body.ackDueAt !== undefined || body.resolutionDueAt !== undefined, {
+    message: 'Provide at least one target date to change',
+  });
+
 export const assignCaseBodySchema = z.object({
   targetLegalRepId: z.string().uuid(),
 });
@@ -145,6 +155,7 @@ export const caseResponseSchema = z.object({
   requesterDesignation: z.string().nullable(),
   assignedLegalRepName: z.string().nullable(),
   assignedLegalRepRole: z.string().nullable(),
+  assignedLegalRepDesignation: z.string().nullable(),
   categoryName: z.string().nullable(),
   caseTypeName: z.string().nullable(),
   departmentName: z.string().nullable(),

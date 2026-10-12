@@ -66,7 +66,8 @@ describe('GET /dashboard', () => {
     ]);
     expect(body.filters.overdue).toEqual({ open: 'true', slaState: 'breached' });
     expect(body.filters.onTime).toBeUndefined();
-    expect(body).not.toHaveProperty('myAssignedCases');
+    // a manager can hold cases too, so they get the list as well (empty here: nothing is assigned to them)
+    expect(body.myAssignedCases).toEqual([]);
     const panels = body.managerPanels;
     expect(panels.unassigned.count).toBe(1);
     expect(panels.unassigned.items.map((item: { id: string }) => item.id)).toEqual([world.a.id]);

@@ -14,6 +14,7 @@ export function serializeComment(row: CaseComment, names: Map<string, UserName>)
     authorId: row.authorId,
     authorName: author?.fullName ?? null,
     authorRole: author?.role ?? null,
+    authorDesignation: author?.designation ?? null,
     body: row.body,
     isInternal: row.isInternal,
     createdAt: row.createdAt.toISOString(),
