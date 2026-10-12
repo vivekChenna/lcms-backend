@@ -29,6 +29,8 @@ const envSchema = z.object({
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   COOKIE_DOMAIN: z.string().min(1).optional(),
   // 'drona': sign in through the DronaHQ container (the browser sends the Drona profile email) and turn password login off
+  // Postgres schema that holds every LCMS table (and the migrations history). Created by `migrate run` if missing.
+  DB_SCHEMA: z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/, 'lowercase letters, digits and underscores').default('public'),
   AUTH_STRATEGY: z.enum(['local', 'drona']).default('local'),
 });
 

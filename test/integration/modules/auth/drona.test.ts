@@ -22,8 +22,14 @@ describe('Drona sign-in', () => {
     await resetDatabase(ds);
     await seedAdmin(ds, { email: 'admin@lcms.local', password: 'Correct123!' });
   });
+  // the developer's .env may select drona, so every test states its own strategy
+  const originalStrategy = process.env.AUTH_STRATEGY;
+  beforeEach(() => {
+    process.env.AUTH_STRATEGY = 'local';
+  });
   afterEach(() => {
-    delete process.env.AUTH_STRATEGY;
+    if (originalStrategy === undefined) delete process.env.AUTH_STRATEGY;
+    else process.env.AUTH_STRATEGY = originalStrategy;
   });
 
   const drona = (app: ReturnType<typeof buildTestApp>, email: string) =>
@@ -55,6 +61,13 @@ describe('Drona sign-in', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().user.email).toBe('admin@lcms.local');
       expect(String(res.headers['set-cookie'])).toContain('HttpOnly');
+    });
+
+    it('lets an admin seeded without a password sign in through Drona', async () => {
+      await seedAdmin(ds, { email: 'ext-vivek.chenna@algihaz.com' });
+      const res = await drona(buildTestApp(ds), 'ext-vivek.chenna@algihaz.com');
+      expect(res.statusCode).toBe(200);
+      expect(res.json().user.role).toBe('admin');
     });
 
     it('does not create an account for an unknown email', async () => {

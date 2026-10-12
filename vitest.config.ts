@@ -20,6 +20,8 @@ export default defineConfig({
       JWT_ACCESS_EXPIRES_IN: '15m',
       REFRESH_TOKEN_EXPIRES_DAYS: '30',
       PORT: '4001',
+      // a developer's .env may select drona; the suite always starts from password sign-in
+      AUTH_STRATEGY: 'local',
     },
   },
 });

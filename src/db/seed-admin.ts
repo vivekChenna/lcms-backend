@@ -7,7 +7,8 @@ import { UserRole } from '../modules/users/entities/user-role.entity';
 
 export async function seedAdmin(
   dataSource: DataSource,
-  options: { email: string; password: string; fullName?: string },
+  /** No password: the admin signs in through Drona, or sets one with the emailed link (forgot password). */
+  options: { email: string; password?: string; fullName?: string },
 ): Promise<void> {
   const email = options.email.toLowerCase();
   const userRepo = dataSource.getRepository(User);
@@ -20,7 +21,7 @@ export async function seedAdmin(
   }
 
   const adminRole = await roleRepo.findOneOrFail({ where: { name: 'admin' } });
-  const passwordHash = await hashPassword(options.password);
+  const passwordHash = options.password ? await hashPassword(options.password) : null;
   const user = await userRepo.save(
     userRepo.create({ fullName: options.fullName ?? 'System Administrator', email, passwordHash, isActive: true }),
   );
@@ -31,8 +32,8 @@ async function main(): Promise<void> {
   const { AppDataSource } = await import('./data-source.js');
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
-  if (!email || !password) {
-    console.error('ADMIN_EMAIL and ADMIN_PASSWORD must be set');
+  if (!email) {
+    console.error('ADMIN_EMAIL must be set');
     process.exit(1);
   }
   await AppDataSource.initialize();

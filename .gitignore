@@ -5,3 +5,4 @@ dist/
 coverage/
 .claude/
 .superpowers/
+.env.production
