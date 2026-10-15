@@ -88,19 +88,22 @@ export async function login(
   return { user: authenticatedUser, refreshToken };
 }
 
-/**
- * Drona sign-in: the DronaHQ container reports the profile email and the user's existing, active account is
- * signed in. Nothing is created, and the email is not proof of who is asking (see docs/drona-sign-in.md).
- */
-export async function loginWithDronaEmail(
+// AUTH_STRATEGY=drona: the DronaHQ container has already verified this person's
+// identity, so there is no password to check -- only that an active account
+// exists for the email the container supplied. Unlike L0-L1-Platform's pilot,
+// LCMS has no self-service "request access" flow (accounts are created by an
+// admin, who emails the new person an invite link), so an unrecognised email
+// is a hard failure here, not an auto-filed pending request.
+export async function droneSignIn(
   dataSource: DataSource,
   refreshTokenExpiresDays: number,
   email: string,
 ): Promise<{ user: AuthenticatedUser; refreshToken: string }> {
   const user = await dataSource.getRepository(User).findOne({ where: { email: email.toLowerCase() } });
   if (!user || !user.isActive) {
-    throw new UnauthorizedError('No active LCMS account matches this Drona profile. Contact your administrator.');
+    throw new UnauthorizedError('No LCMS account exists for this email. Ask an admin to add you.');
   }
+
   const authenticatedUser = await loadAuthenticatedUser(dataSource, user);
   const refreshToken = await issueRefreshToken(dataSource, user.id, refreshTokenExpiresDays);
   return { user: authenticatedUser, refreshToken };

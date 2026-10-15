@@ -1,6 +1,5 @@
 import 'reflect-metadata';
-import { loadEnv } from '../config/env';
-import { AppDataSource } from './data-source';
+import { AppDataSource, ensureSchemaExists } from './data-source';
 
 async function main(): Promise<void> {
   const command = process.argv[2];
@@ -9,10 +8,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  await ensureSchemaExists();
   await AppDataSource.initialize();
   if (command === 'run') {
-    // needs CREATE on the database; if the user lacks it, a DBA creates the schema once instead
-    await AppDataSource.query(`CREATE SCHEMA IF NOT EXISTS "${loadEnv().DB_SCHEMA}"`);
     const applied = await AppDataSource.runMigrations();
     console.log(`Applied ${applied.length} migration(s).`);
   } else {

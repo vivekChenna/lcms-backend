@@ -29,13 +29,14 @@ export async function seedAdmin(
 }
 
 async function main(): Promise<void> {
-  const { AppDataSource } = await import('./data-source.js');
+  const { AppDataSource, ensureSchemaExists } = await import('./data-source.js');
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
   if (!email) {
     console.error('ADMIN_EMAIL must be set');
     process.exit(1);
   }
+  await ensureSchemaExists();
   await AppDataSource.initialize();
   await seedAdmin(AppDataSource, { email, password, fullName: process.env.ADMIN_FULL_NAME });
   console.log(`Admin user ready: ${email.toLowerCase()}`);

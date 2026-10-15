@@ -2,9 +2,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { loadEnv } from '../../config/env';
 import { REFRESH_COOKIE } from '../../config/security';
-import { ConflictError, ServiceUnavailableError, UnauthorizedError } from '../../shared/errors';
-import { login, loginWithDronaEmail, refreshSession, logout, changePassword, loadProfile } from './auth.service';
-import { authConfigSchema, dronaSignInBodySchema, loginBodySchema, refreshBodySchema, sessionResponseSchema, changePasswordBodySchema, profileSchema, forgotPasswordBodySchema, setPasswordBodySchema } from './auth.schemas';
+import { UnauthorizedError } from '../../shared/errors';
+import { login, droneSignIn, refreshSession, logout, changePassword, loadProfile } from './auth.service';
+import { loginBodySchema, dronaBodySchema, authConfigResponseSchema, refreshBodySchema, sessionResponseSchema, changePasswordBodySchema, profileSchema, forgotPasswordBodySchema, setPasswordBodySchema } from './auth.schemas';
+import { ForbiddenError } from '../../shared/errors';
 import { requestPasswordLink, setPasswordWithToken } from './password-links';
 import { setSessionCookies, clearSessionCookies } from './auth-cookies';
 import { loginRateLimit, setPasswordRateLimit } from '../../plugins/rate-limit';
@@ -19,38 +20,39 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
   const env = loadEnv();
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
-  // Public: tells the login page which sign-in to show.
+  // Tells the frontend which sign-in screen to show, and lets it stay a client-side
+  // choice without ever being the actual security boundary -- /auth/login itself
+  // also refuses below while AUTH_STRATEGY=drona, so a direct call cannot bypass it.
   typedApp.get('/auth/config', {
-    schema: { tags: ['Auth'], response: { 200: authConfigSchema } },
-  }, async (_request, reply) => {
-    const mode = loadEnv().AUTH_STRATEGY;
-    reply.header('Cache-Control', 'no-store');
-    return { mode, localLoginAllowed: mode === 'local' };
-  });
-
-  typedApp.post('/auth/drona', {
-    config: { rateLimit: loginRateLimit },
-    schema: { tags: ['Auth'], body: dronaSignInBodySchema, response: { 200: sessionResponseSchema } },
-  }, async (request, reply) => {
-    if (loadEnv().AUTH_STRATEGY !== 'drona') {
-      throw new ConflictError('Drona sign-in is not enabled');
-    }
-    const { user, refreshToken } = await loginWithDronaEmail(app.dataSource, env.REFRESH_TOKEN_EXPIRES_DAYS, request.body.email);
-    const accessToken = app.signAccessToken(user);
-    setSessionCookies(reply, app.security, accessToken, refreshToken);
-    reply.header('Cache-Control', 'no-store');
-    return { accessToken, refreshToken, user: await loadProfile(app.dataSource, user.id) };
-  });
+    schema: { tags: ['Auth'], response: { 200: authConfigResponseSchema } },
+  }, async () => ({
+    mode: env.AUTH_STRATEGY,
+    localLoginAllowed: env.AUTH_STRATEGY !== 'drona',
+  }));
 
   typedApp.post('/auth/login', {
     config: { rateLimit: loginRateLimit },
     schema: { tags: ['Auth'], body: loginBodySchema, response: { 200: sessionResponseSchema } },
   }, async (request, reply) => {
-    if (loadEnv().AUTH_STRATEGY !== 'local') {
-      throw new ServiceUnavailableError('Password sign-in is turned off. Sign in through Drona.');
+    if (env.AUTH_STRATEGY === 'drona') {
+      throw new ForbiddenError('Password sign-in is turned off -- use the Drona sign-in instead.');
     }
     const { email, password } = request.body;
     const { user, refreshToken } = await login(app.dataSource, env.REFRESH_TOKEN_EXPIRES_DAYS, email, password);
+    const accessToken = app.signAccessToken(user);
+    setSessionCookies(reply, app.security, accessToken, refreshToken);
+    return { accessToken, refreshToken, user: await loadProfile(app.dataSource, user.id) };
+  });
+
+  // The DronaHQ container has already verified this person's identity; the email it
+  // supplies is the only input. Still rate-limited like /auth/login -- an unlimited
+  // endpoint that reveals "account exists / does not" via timing or status would be
+  // a user-enumeration oracle regardless of there being no password to brute-force.
+  typedApp.post('/auth/drona', {
+    config: { rateLimit: loginRateLimit },
+    schema: { tags: ['Auth'], body: dronaBodySchema, response: { 200: sessionResponseSchema } },
+  }, async (request, reply) => {
+    const { user, refreshToken } = await droneSignIn(app.dataSource, env.REFRESH_TOKEN_EXPIRES_DAYS, request.body.email);
     const accessToken = app.signAccessToken(user);
     setSessionCookies(reply, app.security, accessToken, refreshToken);
     return { accessToken, refreshToken, user: await loadProfile(app.dataSource, user.id) };
@@ -62,7 +64,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     config: { rateLimit: loginRateLimit },
     schema: { tags: ['Auth'], body: forgotPasswordBodySchema },
   }, async (request, reply) => {
-    const deps = { dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl };
+    const deps = { dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl, authStrategy: env.AUTH_STRATEGY };
     void requestPasswordLink(deps, request.body.email).catch((error) => request.log.error(error, 'password link request failed'));
     reply.status(202).send({ message: 'If that account exists, we have emailed it a link.' });
   });

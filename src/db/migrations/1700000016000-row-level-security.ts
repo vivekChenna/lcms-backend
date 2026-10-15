@@ -25,8 +25,12 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
   name = 'RowLevelSecurity1700000016000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // the schema this run is migrating (DB_SCHEMA, via the connection's search_path); grants and the helper functions follow it
+    // Whichever schema this connection actually resolves unqualified names against --
+    // 'public' by default, or DB_SCHEMA (see src/db/data-source.ts) in a shared database
+    // where this app has its own schema. Everything below that would otherwise hardcode
+    // 'public' uses this instead, so the same migration works in both deployments.
     const [{ schema }] = (await queryRunner.query(`SELECT current_schema() AS schema`)) as [{ schema: string }];
+
     await queryRunner.query(`
       DO $$
       BEGIN
@@ -39,13 +43,15 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     // the connecting user must be able to SET ROLE lcms_app
     await queryRunner.query(`GRANT lcms_app TO CURRENT_USER`);
 
-    await queryRunner.query(`GRANT USAGE ON SCHEMA ${schema} TO lcms_app`);
-    await queryRunner.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO lcms_app`);
-    await queryRunner.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO lcms_app`);
+    await queryRunner.query(`GRANT USAGE ON SCHEMA "${schema}" TO lcms_app`);
+    await queryRunner.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schema}" TO lcms_app`);
+    await queryRunner.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO lcms_app`);
     await queryRunner.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lcms_app`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schema}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lcms_app`,
     );
-    await queryRunner.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT USAGE, SELECT ON SEQUENCES TO lcms_app`);
+    await queryRunner.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${schema}" GRANT USAGE, SELECT ON SEQUENCES TO lcms_app`,
+    );
     // the audit trail is append-only, and the migration bookkeeping is not the application's business
     await queryRunner.query(`REVOKE UPDATE, DELETE ON audit_log FROM lcms_app`);
     await queryRunner.query(`REVOKE ALL ON migrations FROM lcms_app`);
@@ -59,7 +65,7 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     // role and department come from the tables, so they cannot be forged by what the app sends
     await queryRunner.query(`
       CREATE FUNCTION app_current_role() RETURNS text
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$
         SELECT r.name
         FROM user_roles ur
@@ -71,14 +77,14 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     `);
     await queryRunner.query(`
       CREATE FUNCTION app_current_department_id() RETURNS uuid
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$ SELECT "departmentId" FROM users WHERE id = app_current_user_id() $$
     `);
     // answers "is this user the responder of an information request on the case" without being
     // subject to the information_requests policies themselves (which would recurse)
     await queryRunner.query(`
       CREATE FUNCTION app_answers_for_case(p_case uuid) RETURNS boolean
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$
         SELECT EXISTS (
           SELECT 1 FROM information_requests ir
@@ -91,7 +97,7 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     await queryRunner.query(`
       CREATE FUNCTION app_case_visible(p_requester uuid, p_department uuid, p_confidential boolean, p_case uuid)
       RETURNS boolean
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$
         SELECT CASE app_current_role()
           WHEN 'legal_rep' THEN true
@@ -110,7 +116,7 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     // the same rule, for a row that belongs to a case (documents, comments, information requests, audit)
     await queryRunner.query(`
       CREATE FUNCTION app_can_see_case(p_case uuid) RETURNS boolean
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$
         SELECT COALESCE(
           (SELECT app_case_visible(c."requesterId", c."departmentId", c."isConfidential", c.id)
@@ -121,12 +127,12 @@ export class RowLevelSecurity1700000016000 implements MigrationInterface {
     // may this user change data at all (viewers, and anyone unknown, may not)
     await queryRunner.query(`
       CREATE FUNCTION app_can_write() RETURNS boolean
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$ SELECT COALESCE(app_current_role() IN ('requester', 'legal_rep', 'legal_manager', 'admin'), false) $$
     `);
     await queryRunner.query(`
       CREATE FUNCTION app_is_legal() RETURNS boolean
-      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ${schema}, pg_temp
+      LANGUAGE sql STABLE SECURITY DEFINER SET search_path = "${schema}", pg_temp
       AS $$ SELECT COALESCE(app_current_role() IN ('legal_rep', 'legal_manager', 'admin'), false) $$
     `);
 

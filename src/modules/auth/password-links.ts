@@ -20,6 +20,12 @@ export type PasswordLinkDeps = {
   mailer: Mailer | null;
   /** Public address of the frontend; links point at `${frontendUrl}/set-password`. */
   frontendUrl: string | undefined;
+  /**
+   * "drona": nobody has a password to set, invite/reset/forgot-password links are never
+   * sent (AUTH_STRATEGY=drona turns /auth/login itself off too -- see auth.routes.ts).
+   * Created users are already fully usable via /auth/drona with no password at all.
+   */
+  authStrategy: 'local' | 'drona';
 };
 
 type AuditAs = { actorId: string; action: string };
@@ -60,9 +66,9 @@ export async function sendPasswordLink(
   purpose: PasswordLinkPurpose,
   audit: AuditAs,
 ): Promise<boolean> {
-  const { dataSource, mailer, frontendUrl } = deps;
+  const { dataSource, mailer, frontendUrl, authStrategy } = deps;
   let emailSent = false;
-  if (mailer && frontendUrl) {
+  if (authStrategy !== 'drona' && mailer && frontendUrl) {
     const token = generateOpaqueToken();
     const expiresAt = new Date(Date.now() + PASSWORD_LINK_TTL_HOURS * 60 * 60 * 1000);
     await dataSource.transaction(async (manager) => {
@@ -92,6 +98,9 @@ export async function sendPasswordLink(
 
 /** Admin action: email an active user a link. Fails loudly, so the admin knows it did not arrive. */
 export async function sendPasswordLinkAsAdmin(deps: PasswordLinkDeps, adminId: string, user: User): Promise<void> {
+  if (deps.authStrategy === 'drona') {
+    throw new ValidationError('Password links are not used while sign-in is through Drona -- this account can already sign in with no password.');
+  }
   const purpose: PasswordLinkPurpose = user.passwordHash ? 'reset' : 'invite';
   const sent = await sendPasswordLink(deps, user, purpose, { actorId: adminId, action: 'user.password_link_sent' });
   if (!sent) {

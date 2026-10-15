@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { loadEnv } from '../../config/env';
 import { requireRole } from '../../shared/rbac';
 import { createUser, listUsers, getUserById, updateUserRole, deactivateUser, activateUser, updateUser, sendUserPasswordLink, listCaseHolders } from './users.service';
 import { buildPaginatedResponse } from '../../shared/pagination';
@@ -17,13 +18,14 @@ import {
 } from './users.schemas';
 
 export default async function usersRoutes(app: FastifyInstance): Promise<void> {
+  const env = loadEnv();
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   typedApp.post('/users', {
     preHandler: [app.authenticate, requireRole(['admin'])],
     schema: { tags: ['Users'], security: [{ bearerAuth: [] }], body: createUserBodySchema, response: { 201: createUserResponseSchema } },
   }, async (request, reply) => {
-    const user = await createUser({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl }, request.user.id, request.body);
+    const user = await createUser({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl, authStrategy: env.AUTH_STRATEGY }, request.user.id, request.body);
     reply.status(201).send(user);
   });
 
@@ -79,7 +81,7 @@ export default async function usersRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [app.authenticate, requireRole(['admin'])],
     schema: { tags: ['Users'], security: [{ bearerAuth: [] }], params: userIdParamsSchema, response: { 200: sendPasswordLinkResponseSchema } },
   }, async (request) => {
-    await sendUserPasswordLink({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl }, request.user.id, request.params.id);
+    await sendUserPasswordLink({ dataSource: app.dataSource, mailer: app.mailer, frontendUrl: app.frontendUrl, authStrategy: env.AUTH_STRATEGY }, request.user.id, request.params.id);
     return { emailSent: true as const };
   });
 }
